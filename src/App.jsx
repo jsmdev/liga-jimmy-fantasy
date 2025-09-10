@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { LogOut, Filter, Plus, Edit, Trash2, Loader2, UserCircle2, Eye } from 'lucide-react'
@@ -44,7 +45,7 @@ export default function App(){
       }
       setBootLoading(false)
     })()
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (evt, sess) => {
       setSession(sess)
       if (sess?.user) setProfile(await fetchProfile(sess.user.id))
       else setProfile(null)
@@ -386,20 +387,42 @@ function SettingsModal({ open, onClose, participants, isAdmin, onUpdate }){
 }
 
 function AuthScreen(){
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'reset'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin(){
-    setError(''); setLoading(TrueFalse(false))
-  }
-
   async function doLogin(){
-    setLoading(true)
+    setError(''); setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setLoading(false)
     if (error) setError(error.message)
+  }
+
+  async function doSignup(){
+    setError(''); setLoading(true)
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+    if (error) { setLoading(false); setError(error.message); return }
+    const userId = data.user?.id
+    if (userId){
+      // Crea perfil viewer por defecto (la app te reconocerá tras login)
+      await supabase.from('profiles').insert({ user_id: userId, full_name: fullName || email, role: 'viewer' })
+    }
+    setLoading(false)
+    alert('Cuenta creada. Revisa tu correo si Supabase requiere confirmación y luego inicia sesión.')
+    setMode('login')
+  }
+
+  async function doReset(){
+    setError(''); setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    })
+    setLoading(false)
+    if (error) setError(error.message)
+    else alert('Te enviamos un email para restablecer la contraseña.')
   }
 
   return (
@@ -409,17 +432,52 @@ function AuthScreen(){
           <h3 className="text-2xl font-bold text-slate-900">{TITLE}</h3>
           <p className="text-slate-700">{SUBTITLE}</p>
         </div>
+
         <div className="px-6 py-4 grid gap-4">
+          {mode === 'signup' && (
+            <div className="grid gap-2">
+              <label className="text-slate-800 text-sm">Nombre completo</label>
+              <input value={fullName} onChange={e=>setFullName(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+            </div>
+          )}
+
           <div className="grid gap-2">
             <label className="text-slate-800 text-sm">Email</label>
             <input placeholder="tu@correo.com" value={email} onChange={e=>setEmail(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm"/>
           </div>
-          <div className="grid gap-2">
-            <label className="text-slate-800 text-sm">Contraseña</label>
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm"/>
-          </div>
+
+          {mode !== 'reset' && (
+            <div className="grid gap-2">
+              <label className="text-slate-800 text-sm">Contraseña</label>
+              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm"/>
+            </div>
+          )}
+
           {error && <p className="text-sm text-rose-600">{error}</p>}
-          <Button onClick={doLogin} disabled={loading}>{loading ? (<span className="inline-flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin"/>Entrando…</span>) : 'Entrar'}</Button>
+
+          {mode === 'login' && (
+            <>
+              <Button onClick={doLogin} disabled={loading}>{loading ? 'Entrando…' : 'Entrar'}</Button>
+              <div className="flex justify-between text-sm text-slate-600">
+                <button onClick={()=>setMode('signup')}>Crear cuenta</button>
+                <button onClick={()=>setMode('reset')}>Olvidé mi contraseña</button>
+              </div>
+            </>
+          )}
+
+          {mode === 'signup' && (
+            <>
+              <Button onClick={doSignup} disabled={loading}>{loading ? 'Creando…' : 'Crear cuenta'}</Button>
+              <div className="text-sm text-slate-600"><button onClick={()=>setMode('login')}>Ya tengo cuenta</button></div>
+            </>
+          )}
+
+          {mode === 'reset' && (
+            <>
+              <Button onClick={doReset} disabled={loading}>{loading ? 'Enviando…' : 'Enviar enlace de restablecimiento'}</Button>
+              <div className="text-sm text-slate-600"><button onClick={()=>setMode('login')}>Volver a iniciar sesión</button></div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -429,5 +487,3 @@ function AuthScreen(){
 function Splash(){
   return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700"><Loader2 className="w-5 h-5 mr-2 animate-spin"/>Cargando…</div>
 }
-
-function TrueFalse(x){ return !!x } // tiny helper

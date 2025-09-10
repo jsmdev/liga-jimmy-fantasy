@@ -2,11 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
-
-/* Simple modal backdrop */
 .modal-backdrop {
   position: fixed;
   inset: 0;
