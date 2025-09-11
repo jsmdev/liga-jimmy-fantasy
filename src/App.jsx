@@ -10,6 +10,8 @@ import Select from '@/components/ui/Select.jsx'
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 
+const SHOW_DATE_FILTERS = false
+
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 function initials(name){ return (name||'?').split(' ').filter(Boolean).map(n=>n[0]).join('').slice(0,3).toUpperCase() }
@@ -18,19 +20,16 @@ function signClass(n){ if (n>0) return 'bg-emerald-600'; if (n<0) return 'bg-ros
 function signTextClass(n){ if (n>0) return 'text-emerald-700'; if (n<0) return 'text-rose-700'; return 'text-slate-900' }
 function fmtSigned(n){ return n>0? '+'+n : String(n) }
 
-const SHOW_DATE_FILTERS = false
-
 export default function App(){
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Filtros y ordenación
   const [filterParticipantId, setFilterParticipantId] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState('date')      // 'date' | 'name' | 'team' | 'amount'
   const [sortDir, setSortDir] = useState('desc')    // 'asc' | 'desc'
+
+  const [lightboxUrl, setLightboxUrl] = useState(null)
 
   async function load(){
     setLoading(true)
@@ -45,14 +44,12 @@ export default function App(){
 
   useEffect(()=>{ load() }, [])
 
-  // Totales
   const totals = useMemo(()=>{
     const map = Object.fromEntries(participants.map(p=>[p.id,0]))
     for(const pen of penalties) if (map[pen.participant_id]!==undefined) map[pen.participant_id]+=Number(pen.amount)||0
     return map
   }, [participants, penalties])
 
-  // Enriquecemos filas para filtrar/ordenar
   const rows = useMemo(()=>{
     const joined = penalties.map(p=>{
       const part = participants.find(pp=>pp.id===p.participant_id)
@@ -64,24 +61,8 @@ export default function App(){
         _date: p.date ? new Date(p.date) : null
       }
     })
-
-    // Filtros
-    let r = joined
-    if (filterParticipantId !== 'all') r = r.filter(x=> x.participant_id === filterParticipantId)
-    if (dateFrom) {
-      const from = new Date(dateFrom)
-      r = r.filter(x=> x._date ? x._date >= from : true)
-    }
-    if (dateTo) {
-      const to = new Date(dateTo)
-      // incluir el día final completo
-      to.setHours(23,59,59,999)
-      r = r.filter(x=> x._date ? x._date <= to : true)
-    }
-
-    // Ordenación
     const dir = (sortDir === 'asc') ? 1 : -1
-    r.sort((a,b)=>{
+    joined.sort((a,b)=>{
       switch (sortBy){
         case 'name':  return a._name.localeCompare(b._name) * dir
         case 'team':  return a._team.localeCompare(b._team) * dir
@@ -94,8 +75,8 @@ export default function App(){
         }
       }
     })
-    return r
-  }, [penalties, participants, filterParticipantId, dateFrom, dateTo, sortBy, sortDir])
+    return joined
+  }, [penalties, participants, sortBy, sortDir])
 
   const totalGlobal = Object.values(totals).reduce((a,b)=>a+b,0)
 
@@ -126,7 +107,9 @@ export default function App(){
                   <Card key={p.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-3">
-                        <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} />
+                        <div onClick={()=> p.photo_url && setLightboxUrl(p.photo_url)} className={p.photo_url ? "cursor-zoom-in" : ""}>
+                          <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} size="lg" />
+                        </div>
                         <div>
                           <div className="text-base font-semibold text-slate-900">{p.name}</div>
                           <div className="text-xs text-slate-600 truncate">{p.team_name || 'Equipo sin nombre'}</div>
@@ -134,9 +117,11 @@ export default function App(){
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-slate-600">Sumatorio</div>
-                        <Badge className={['text-base text-white', signClass(totals[p.id]||0)].join(' ')}>{fmtSigned(totals[p.id]||0)}</Badge>
+                      <div className="flex items-center justify-start gap-3">
+                        <span className="text-sm text-slate-700 font-medium">Total:</span>
+                        <Badge className={['px-3 py-1.5 text-lg font-bold text-white', signClass(totals[p.id]||0)].join(' ')}>
+                          {fmtSigned(totals[p.id]||0)}
+                        </Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -144,7 +129,7 @@ export default function App(){
               </div>
             </section>
 
-            {/* Controles: filtro participante + rango fechas + orden */}
+            {/* Controles: participante + orden */}
             <section className="grid gap-3 md:grid-cols-4">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-500"/>
@@ -156,18 +141,20 @@ export default function App(){
                 options={[{value:'all', label:'Todos'}, ...participants.map(p=>({value:p.id, label:p.name}))]}
                 className="w-full"
               />
+
               {SHOW_DATE_FILTERS && (
                 <div className="grid grid-cols-2 gap-3 md:col-span-2">
                   <div>
                     <label className="block text-slate-700 text-sm mb-1">Desde</label>
-                    <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
+                    <input type="date" className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full" disabled />
                   </div>
                   <div>
                     <label className="block text-slate-700 text-sm mb-1">Hasta</label>
-                    <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
+                    <input type="date" className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full" disabled />
                   </div>
                 </div>
               )}
+
               <div className="grid grid-cols-2 gap-3 md:col-span-4">
                 <div>
                   <label className="block text-slate-700 text-sm mb-1">Ordenar por</label>
@@ -198,35 +185,37 @@ export default function App(){
               </div>
             </section>
 
-            {/* HISTORIAL - versión móvil (cards) */}
+            {/* HISTORIAL - móvil (cards) */}
             <section className="sm:hidden">
               <div className="grid gap-3">
-                {rows.length===0 ? (
-                  <Card><CardContent className="py-10 text-center text-slate-500">No hay penalizaciones que coincidan.</CardContent></Card>
-                ) : rows.map(pen=>{
-                  return (
-                    <Card key={pen.id}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-start gap-3">
-                          <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <div className="font-semibold text-slate-900">{pen._name}</div>
-                              <Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge>
+                {rows
+                  .filter(p=> filterParticipantId==='all' || p.participant_id===filterParticipantId)
+                  .map(pen=>{
+                    return (
+                      <Card key={pen.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-3">
+                            <div onClick={()=> pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? "cursor-zoom-in" : ""}>
+                              <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} size="lg" />
                             </div>
-                            <div className="text-xs text-slate-600">{pen._team || '—'}</div>
-                            <div className="text-xs text-slate-600 mt-1">{fmtDate(pen.date)}</div>
-                            <div className="text-sm text-slate-800 whitespace-pre-wrap break-words mt-2">{pen.reason}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <div className="font-semibold text-slate-900">{pen._name}</div>
+                                <Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge>
+                              </div>
+                              <div className="text-xs text-slate-600">{pen._team || '—'}</div>
+                              <div className="text-xs text-slate-600 mt-1">{fmtDate(pen.date)}</div>
+                              <div className="text-sm text-slate-800 whitespace-pre-wrap break-words mt-2">{pen.reason}</div>
+                            </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
+                        </CardContent>
+                      </Card>
+                    )
                 })}
               </div>
             </section>
 
-            {/* HISTORIAL - versión escritorio (tabla con scroll horizontal) */}
+            {/* HISTORIAL - escritorio (tabla con scroll horizontal) */}
             <section className="hidden sm:block">
               <Card className="overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -249,11 +238,15 @@ export default function App(){
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.length===0 ? (
-                          <tr><td colSpan={6} className="text-center py-10 text-slate-500">No hay penalizaciones que coincidan.</td></tr>
-                        ) : rows.map(pen=>(
+                        {rows
+                          .filter(p=> filterParticipantId==='all' || p.participant_id===filterParticipantId)
+                          .map(pen=>(
                           <tr key={pen.id} className="align-top hover:bg-slate-50 border-t">
-                            <td className="px-4 py-3"><Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} /></td>
+                            <td className="px-4 py-3">
+                              <div onClick={()=> pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? "cursor-zoom-in inline-block" : "inline-block"}>
+                                <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
+                              </div>
+                            </td>
                             <td className="px-4 py-3 font-medium text-slate-900">{pen._name || '—'}</td>
                             <td className="px-4 py-3 text-slate-700">{pen._team || '—'}</td>
                             <td className="px-4 py-3 text-slate-700">{fmtDate(pen.date)}</td>
@@ -267,6 +260,20 @@ export default function App(){
                 </CardContent>
               </Card>
             </section>
+
+            {/* LIGHTBOX */}
+            {lightboxUrl && (
+              <div
+                className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+                onClick={()=> setLightboxUrl(null)}
+              >
+                <img
+                  src={lightboxUrl}
+                  alt="Foto ampliada"
+                  className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-lg"
+                />
+              </div>
+            )}
           </>
         )}
       </main>

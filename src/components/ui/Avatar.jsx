@@ -3,15 +3,17 @@ import React, { useEffect, useState } from 'react'
 async function getCachedObjectUrl(url){
   try{
     if (!url) return null
-    // Cache Storage API (funciona en HTTPS: Vercel ✓)
+    // Solo usar Cache Storage si existe (evita errores en entornos raros)
+    if (typeof caches === 'undefined') return null
+
     const cache = await caches.open('participant-photos-v1')
     const absolute = new URL(url, window.location.href).toString()
 
     let response = await cache.match(absolute)
     if (!response){
+      // Intenta fetch con CORS; si falla, devolvemos null y usaremos la URL directa
       response = await fetch(absolute, { mode: 'cors' })
       if (response.ok) {
-        // Guarda en caché para futuras vistas
         await cache.put(absolute, response.clone())
       } else {
         return null
@@ -25,31 +27,39 @@ async function getCachedObjectUrl(url){
   }
 }
 
-export default function Avatar({ src, alt, fallback }) {
+export default function Avatar({ src, alt, fallback, size = "md" }) {
+  const sizes = {
+    sm: "h-8 w-8 text-xs",
+    md: "h-10 w-10 text-sm",
+    lg: "h-16 w-16 text-base", // 64px
+    xl: "h-24 w-24 text-lg"   // 96px
+  }
+
   const [objectUrl, setObjectUrl] = useState(null)
 
   useEffect(()=>{
-    let revoked
+    let last = null
     ;(async ()=>{
       const url = await getCachedObjectUrl(src)
       setObjectUrl(prev=>{
         if (prev && prev !== url) URL.revokeObjectURL(prev)
+        last = url
         return url
       })
     })()
-    return ()=>{ 
-      if (objectUrl) { URL.revokeObjectURL(objectUrl); revoked = true }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return ()=>{ if (last) URL.revokeObjectURL(last) }
   }, [src])
 
   return (
-    <div className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-indigo-100 bg-slate-200 flex items-center justify-center text-slate-700">
-      {objectUrl 
+    <div className={[
+      "rounded-full overflow-hidden ring-2 ring-indigo-100 bg-slate-200 flex items-center justify-center text-slate-700",
+      sizes[size] || sizes.md
+    ].join(" ")}>
+      {objectUrl
         ? <img src={objectUrl} alt={alt} className="h-full w-full object-cover" loading="lazy" />
-        : (src 
+        : (src
             ? <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />
-            : <span className="text-sm">{fallback}</span>
+            : <span>{fallback}</span>
           )
       }
     </div>
