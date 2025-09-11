@@ -22,7 +22,11 @@ const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env
 function initials(name) { return (name || '?').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 3).toUpperCase() }
 function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { return d } }
 function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
-function signTextClass(n) { if (n > 0) return 'text-emerald-700'; if (n < 0) return 'text-rose-700'; return 'text-slate-100' }
+function signTextClass(n) {
+  if (n > 0) return 'text-emerald-700 dark:text-emerald-400'
+  if (n < 0) return 'text-rose-700 dark:text-rose-400'
+  return 'text-slate-900 dark:text-slate-100'
+}
 function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
 
 export default function App() {
@@ -71,6 +75,21 @@ export default function App() {
     }
     return map
   }, [participants, penalties])
+
+  const globalBreakdown = useMemo(() => {
+    let sanciones = 0, sancionesTotal = 0, bonificaciones = 0, bonificacionesTotal = 0
+    let totalCount = 0, totalSum = 0
+
+    for (const pen of penalties) {
+      const amount = Number(pen.amount) || 0
+      totalCount++
+      totalSum += amount
+      if (amount < 0) { sanciones++; sancionesTotal += amount }
+      else if (amount > 0) { bonificaciones++; bonificacionesTotal += amount }
+    }
+
+    return { sanciones, sancionesTotal, bonificaciones, bonificacionesTotal, totalCount, totalSum }
+  }, [penalties])
 
   const rows = useMemo(() => {
     const joined = penalties.map(p => {
@@ -136,8 +155,43 @@ export default function App() {
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xl font-semibold">Resumen de penalizaciones</h2>
-                <div className={['text-sm font-semibold', signTextClass(totalGlobal)].join(' ')}>
-                  Total global: <span>{fmtSigned(totalGlobal)}</span>
+
+                <div className="flex items-center gap-4 text-sm flex-wrap">
+                  {/* Sanciones globales */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {globalBreakdown.sanciones} [
+                      <span className={signTextClass(globalBreakdown.sancionesTotal)}>
+                        {fmtSigned(globalBreakdown.sancionesTotal)}
+                      </span>
+                      ]
+                    </span>
+                  </div>
+
+                  {/* Bonificaciones globales */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {globalBreakdown.bonificaciones} [
+                      <span className={signTextClass(globalBreakdown.bonificacionesTotal)}>
+                        {fmtSigned(globalBreakdown.bonificacionesTotal)}
+                      </span>
+                      ]
+                    </span>
+                  </div>
+
+                  {/* Total global */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700 dark:text-slate-300">Total global:</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {globalBreakdown.totalCount} [
+                      <span className={signTextClass(globalBreakdown.totalSum)}>
+                        {fmtSigned(globalBreakdown.totalSum)}
+                      </span>
+                      ]
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -188,22 +242,28 @@ export default function App() {
                           </Badge>
                         </div>
 
-                        {/* NUEVAS MÉTRICAS */}
-                        <div className="mt-2 space-y-1 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
-                            <span className="font-semibold text-rose-600">
-                              {(breakdown[p.id]?.sanciones || 0)} [
-                              {fmtSigned(breakdown[p.id]?.sancionesTotal || 0)}]
+                        {/* Sanciones */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {(breakdown[p.id]?.sanciones || 0)} [
+                            <span className={signTextClass(breakdown[p.id]?.sancionesTotal || 0)}>
+                              {fmtSigned(breakdown[p.id]?.sancionesTotal || 0)}
                             </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
-                            <span className="font-semibold text-emerald-600">
-                              {(breakdown[p.id]?.bonificaciones || 0)} [
-                              +{breakdown[p.id]?.bonificacionesTotal || 0}]
+                            ]
+                          </span>
+                        </div>
+
+                        {/* Bonificaciones */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {(breakdown[p.id]?.bonificaciones || 0)} [
+                            <span className={signTextClass(breakdown[p.id]?.bonificacionesTotal || 0)}>
+                              {fmtSigned(breakdown[p.id]?.bonificacionesTotal || 0)}
                             </span>
-                          </div>
+                            ]
+                          </span>
                         </div>
                       </CardContent>
                     </Card>
