@@ -18,6 +18,8 @@ function signClass(n){ if (n>0) return 'bg-emerald-600'; if (n<0) return 'bg-ros
 function signTextClass(n){ if (n>0) return 'text-emerald-700'; if (n<0) return 'text-rose-700'; return 'text-slate-900' }
 function fmtSigned(n){ return n>0? '+'+n : String(n) }
 
+const SHOW_DATE_FILTERS = false
+
 export default function App(){
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
@@ -154,17 +156,18 @@ export default function App(){
                 options={[{value:'all', label:'Todos'}, ...participants.map(p=>({value:p.id, label:p.name}))]}
                 className="w-full"
               />
-              <div className="grid grid-cols-2 gap-3 md:col-span-2">
-                <div>
-                  <label className="block text-slate-700 text-sm mb-1">Desde</label>
-                  <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
+              {SHOW_DATE_FILTERS && (
+                <div className="grid grid-cols-2 gap-3 md:col-span-2">
+                  <div>
+                    <label className="block text-slate-700 text-sm mb-1">Desde</label>
+                    <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 text-sm mb-1">Hasta</label>
+                    <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-slate-700 text-sm mb-1">Hasta</label>
-                  <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm w-full"/>
-                </div>
-              </div>
-
+              )}
               <div className="grid grid-cols-2 gap-3 md:col-span-4">
                 <div>
                   <label className="block text-slate-700 text-sm mb-1">Ordenar por</label>
