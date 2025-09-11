@@ -19,13 +19,13 @@ const SUBTITLE = 'Una liga para gente de bien'
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
-function initials(name){ return (name||'?').split(' ').filter(Boolean).map(n=>n[0]).join('').slice(0,3).toUpperCase() }
-function fmtDate(d){ try { return new Date(d).toLocaleDateString() } catch { return d } }
-function signClass(n){ if (n>0) return 'bg-emerald-600'; if (n<0) return 'bg-rose-600'; return 'bg-slate-600' }
-function signTextClass(n){ if (n>0) return 'text-emerald-700'; if (n<0) return 'text-rose-700'; return 'text-slate-100' }
-function fmtSigned(n){ return n>0? '+'+n : String(n) }
+function initials(name) { return (name || '?').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 3).toUpperCase() }
+function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { return d } }
+function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
+function signTextClass(n) { if (n > 0) return 'text-emerald-700'; if (n < 0) return 'text-rose-700'; return 'text-slate-100' }
+function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
 
-export default function App(){
+export default function App() {
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
   const [loading, setLoading] = useState(true)
@@ -36,28 +36,45 @@ export default function App(){
 
   const [lightboxUrl, setLightboxUrl] = useState(null)
 
-  async function load(){
+  async function load() {
     setLoading(true)
     const { data: parts, error: e1 } = await supabase.from('participants').select('id,name,team_name,photo_url').order('name')
     if (e1) console.error(e1)
-    const { data: pens,  error: e2 } = await supabase.from('penalties').select('id,participant_id,amount,reason,date').order('date', { ascending:false })
+    const { data: pens, error: e2 } = await supabase.from('penalties').select('id,participant_id,amount,reason,date').order('date', { ascending: false })
     if (e2) console.error(e2)
-    setParticipants(parts||[])
-    setPenalties(pens||[])
+    setParticipants(parts || [])
+    setPenalties(pens || [])
     setLoading(false)
   }
 
-  useEffect(()=>{ load() }, [])
+  useEffect(() => { load() }, [])
 
-  const totals = useMemo(()=>{
-    const map = Object.fromEntries(participants.map(p=>[p.id,0]))
-    for(const pen of penalties) if (map[pen.participant_id]!==undefined) map[pen.participant_id]+=Number(pen.amount)||0
+  const totals = useMemo(() => {
+    const map = Object.fromEntries(participants.map(p => [p.id, 0]))
+    for (const pen of penalties) if (map[pen.participant_id] !== undefined) map[pen.participant_id] += Number(pen.amount) || 0
     return map
   }, [participants, penalties])
 
-  const rows = useMemo(()=>{
-    const joined = penalties.map(p=>{
-      const part = participants.find(pp=>pp.id===p.participant_id)
+  const breakdown = useMemo(() => {
+    const map = Object.fromEntries(participants.map(p => [p.id, { sanciones: 0, sancionesTotal: 0, bonificaciones: 0, bonificacionesTotal: 0 }]))
+    for (const pen of penalties) {
+      const entry = map[pen.participant_id]
+      if (!entry) continue
+      const amount = Number(pen.amount) || 0
+      if (amount < 0) {
+        entry.sanciones++
+        entry.sancionesTotal += amount
+      } else if (amount > 0) {
+        entry.bonificaciones++
+        entry.bonificacionesTotal += amount
+      }
+    }
+    return map
+  }, [participants, penalties])
+
+  const rows = useMemo(() => {
+    const joined = penalties.map(p => {
+      const part = participants.find(pp => pp.id === p.participant_id)
       return {
         ...p,
         _name: part?.name || '',
@@ -67,11 +84,11 @@ export default function App(){
       }
     })
     const dir = (sortDir === 'asc') ? 1 : -1
-    joined.sort((a,b)=>{
-      switch (sortBy){
-        case 'name':  return a._name.localeCompare(b._name) * dir
-        case 'team':  return a._team.localeCompare(b._team) * dir
-        case 'amount': return ((a.amount||0) - (b.amount||0)) * dir
+    joined.sort((a, b) => {
+      switch (sortBy) {
+        case 'name': return a._name.localeCompare(b._name) * dir
+        case 'team': return a._team.localeCompare(b._team) * dir
+        case 'amount': return ((a.amount || 0) - (b.amount || 0)) * dir
         case 'date':
         default: {
           const at = a._date ? a._date.getTime() : 0
@@ -83,11 +100,11 @@ export default function App(){
     return joined
   }, [penalties, participants, sortBy, sortDir])
 
-  const totalGlobal = Object.values(totals).reduce((a,b)=>a+b,0)
+  const totalGlobal = Object.values(totals).reduce((a, b) => a + b, 0)
 
-  const carouselPhotos = useMemo(()=>{
+  const carouselPhotos = useMemo(() => {
     const pics = participants
-      .map(p=> p.photo_url ? ({ url: p.photo_url, alt: p.name, caption: p.team_name || p.name }) : null)
+      .map(p => p.photo_url ? ({ url: p.photo_url, alt: p.name, caption: p.team_name || p.name }) : null)
       .filter(Boolean)
     return pics.length ? [...pics, ...pics.slice(0, Math.min(5, pics.length))] : []
   }, [participants])
@@ -113,7 +130,7 @@ export default function App(){
         </section>
 
         {loading ? (
-          <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300"><Loader2 className="w-5 h-5 mr-2 animate-spin"/>Cargando datos…</div>
+          <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300"><Loader2 className="w-5 h-5 mr-2 animate-spin" />Cargando datos…</div>
         ) : (
           <>
             <section>
@@ -124,7 +141,7 @@ export default function App(){
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {participants.map((p, idx)=>(
+                {participants.map((p, idx) => (
                   <motion.div
                     key={p.id}
                     initial={{ opacity: 0, y: 8 }}
@@ -134,21 +151,59 @@ export default function App(){
                     <Card className="glass card-float">
                       <CardHeader className="pb-2">
                         <div className="flex items-center gap-3">
-                          <div onClick={()=> p.photo_url && setLightboxUrl(p.photo_url)} className={p.photo_url ? "cursor-zoom-in" : ""}>
-                            <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} size="lg" />
+                          <div
+                            onClick={() => p.photo_url && setLightboxUrl(p.photo_url)}
+                            className={p.photo_url ? "cursor-zoom-in" : ""}
+                          >
+                            <Avatar
+                              src={p.photo_url}
+                              alt={p.name}
+                              fallback={initials(p.name)}
+                              size="lg"
+                            />
                           </div>
                           <div>
-                            <div className="text-base font-semibold text-slate-900 dark:text-slate-100">{p.name}</div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400 truncate">{p.team_name || 'Equipo sin nombre'}</div>
+                            <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                              {p.name}
+                            </div>
+                            <div className="text-xs text-slate-600 dark:text-slate-400 truncate">
+                              {p.team_name || "Equipo sin nombre"}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0">
+                        {/* Total */}
                         <div className="flex items-center justify-start gap-3">
-                          <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Total:</span>
-                          <Badge className={['px-3 py-1.5 text-lg font-bold text-white', signClass(totals[p.id]||0)].join(' ')}>
-                            {fmtSigned(totals[p.id]||0)}
+                          <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+                            Total:
+                          </span>
+                          <Badge
+                            className={[
+                              "px-3 py-1.5 text-lg font-bold text-white",
+                              signClass(totals[p.id] || 0),
+                            ].join(" ")}
+                          >
+                            {fmtSigned(totals[p.id] || 0)}
                           </Badge>
+                        </div>
+
+                        {/* NUEVAS MÉTRICAS */}
+                        <div className="mt-2 space-y-1 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
+                            <span className="font-semibold text-rose-600">
+                              {(breakdown[p.id]?.sanciones || 0)} [
+                              {fmtSigned(breakdown[p.id]?.sancionesTotal || 0)}]
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
+                            <span className="font-semibold text-emerald-600">
+                              {(breakdown[p.id]?.bonificaciones || 0)} [
+                              +{breakdown[p.id]?.bonificacionesTotal || 0}]
+                            </span>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -159,13 +214,13 @@ export default function App(){
 
             <section className="grid gap-3 md:grid-cols-4">
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-slate-500"/>
+                <Filter className="w-4 h-4 text-slate-500" />
                 <label className="text-slate-700 dark:text-slate-300 text-sm">Participante</label>
               </div>
               <Select
                 value={filterParticipantId}
-                onChange={v=>setFilterParticipantId(v)}
-                options={[{value:'all', label:'Todos'}, ...participants.map(p=>({value:p.id, label:p.name}))]}
+                onChange={v => setFilterParticipantId(v)}
+                options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]}
                 className="w-full"
               />
               <div className="md:col-span-2 flex items-center md:justify-end">
@@ -179,10 +234,10 @@ export default function App(){
                     value={sortBy}
                     onChange={setSortBy}
                     options={[
-                      {value:'date', label:'Fecha'},
-                      {value:'name', label:'Nombre participante'},
-                      {value:'team', label:'Nombre equipo'},
-                      {value:'amount', label:'Penalización'},
+                      { value: 'date', label: 'Fecha' },
+                      { value: 'name', label: 'Nombre participante' },
+                      { value: 'team', label: 'Nombre equipo' },
+                      { value: 'amount', label: 'Penalización' },
                     ]}
                     className="w-full"
                   />
@@ -193,8 +248,8 @@ export default function App(){
                     value={sortDir}
                     onChange={setSortDir}
                     options={[
-                      {value:'asc', label:'Ascendente'},
-                      {value:'desc', label:'Descendente'},
+                      { value: 'asc', label: 'Ascendente' },
+                      { value: 'desc', label: 'Descendente' },
                     ]}
                     className="w-full"
                   />
@@ -205,13 +260,13 @@ export default function App(){
             <section className="sm:hidden">
               <div className="grid gap-3">
                 {rows
-                  .filter(p=> filterParticipantId==='all' || p.participant_id===filterParticipantId)
-                  .map(pen=>{
+                  .filter(p => filterParticipantId === 'all' || p.participant_id === filterParticipantId)
+                  .map(pen => {
                     return (
                       <Card key={pen.id} className="glass card-float">
                         <CardContent className="pt-6">
                           <div className="flex items-start gap-3">
-                            <div onClick={()=> pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? "cursor-zoom-in" : ""}>
+                            <div onClick={() => pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? "cursor-zoom-in" : ""}>
                               <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} size="lg" />
                             </div>
                             <div className="flex-1">
@@ -227,7 +282,7 @@ export default function App(){
                         </CardContent>
                       </Card>
                     )
-                })}
+                  })}
               </div>
             </section>
 
@@ -236,7 +291,7 @@ export default function App(){
                 <CardHeader className="flex flex-row items-center justify-between gap-4">
                   <div>
                     <CardTitle>Historial de penalizaciones</CardTitle>
-                    <CardDescription>Consulta detallada de sanciones y bonificaciones. Orden actual: <strong>{({date:'Fecha',name:'Nombre',team:'Equipo',amount:'Penalización'})[sortBy]}</strong> <ArrowUpDown className="inline w-4 h-4"/></CardDescription>
+                    <CardDescription>Consulta detallada de sanciones y bonificaciones. Orden actual: <strong>{({ date: 'Fecha', name: 'Nombre', team: 'Equipo', amount: 'Penalización' })[sortBy]}</strong> <ArrowUpDown className="inline w-4 h-4" /></CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -254,21 +309,21 @@ export default function App(){
                       </thead>
                       <tbody>
                         {rows
-                          .filter(p=> filterParticipantId==='all' || p.participant_id===filterParticipantId)
-                          .map(pen=>(
-                          <tr key={pen.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
-                            <td className="px-4 py-3">
-                              <div onClick={()=> pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}>
-                                <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{pen._name || '—'}</td>
-                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{pen._team || '—'}</td>
-                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(pen.date)}</td>
-                            <td className="px-4 py-3"><Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge></td>
-                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{pen.reason}</td>
-                          </tr>
-                        ))}
+                          .filter(p => filterParticipantId === 'all' || p.participant_id === filterParticipantId)
+                          .map(pen => (
+                            <tr key={pen.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
+                              <td className="px-4 py-3">
+                                <div onClick={() => pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}>
+                                  <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{pen._name || '—'}</td>
+                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{pen._team || '—'}</td>
+                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(pen.date)}</td>
+                              <td className="px-4 py-3"><Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge></td>
+                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{pen.reason}</td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -277,7 +332,7 @@ export default function App(){
             </section>
 
             {lightboxUrl && (
-              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={()=> setLightboxUrl(null)}>
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setLightboxUrl(null)}>
                 <img src={lightboxUrl} alt="Foto ampliada" className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-lg" />
               </div>
             )}
