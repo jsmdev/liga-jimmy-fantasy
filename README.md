@@ -1,13 +1,28 @@
-# Liga Jimmy Fantasy – Penalizaciones
 
-# Liga Jimmy Fantasy
+# ⚽ Liga Jimmy Fantasy – Versión atractiva (dark mode + confeti + carrusel)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/jsmdev/liga-jimmy-fantasy)
+## Requisitos
+- Node 18+
+- Variables `.env`:
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
 
-[![Vercel Status](https://vercelbadge.vercel.app/api/jsmdev/liga-jimmy-fantasy)](https://liga-jimmy-fantasy.vercel.app)
+## Instalar y ejecutar
+```bash
+npm install
+npm run dev
+```
 
-Aplicación web para gestionar las penalizaciones de la Liga Jimmy Fantasy.
+## Despliegue (Vercel)
+- Añade las env vars en Vercel (Production & Preview).
+- `npm run build` genera `dist` automáticamente.
 
-App web en **React (Vite) + Tailwind + Supabase (Auth + Postgres)** para gestionar penalizaciones/bonificaciones de la Liga Jimmy Fantasy.
-
-Todo gestionado y mantenido por el dictador y amado LIDL Kim Jong Pepe Sancho.
+## Incluye
+- Tema oscuro con toggle y persistencia en localStorage
+- Cabecera con gradiente y efecto glass
+- Tarjetas con “float hover”
+- Confeti (botón y easter egg Konami)
+- Carrusel de fotos (usa `participants.photo_url`)
+- Tabla responsive con scroll horizontal
