@@ -1,7 +1,9 @@
 // ==============================
 //  APP PRINCIPAL – Liga Jimmy Fantasy
 //  - Carrusel (tabla Supabase carousel_photos)
-//  - Ranking desde servidor (v_ranking_current) con podio y farolillo rojo
+//  - Ranking desde servidor (v_ranking_current) con podio responsive y farolillo rojo
+//    · Móvil: Flex (Oro → Plata → Bronce)
+//    · sm+: Grid (Plata – Oro – Bronce)
 //    · Click en 1º = confeti + toast
 //    · Desglose: "Puntos Fantasy" (externo) y "Ajuste" (bonificaciones - sanciones)
 //    · "Premio bote: XX%" debajo del icono en Oro/Plata/Bronce
@@ -37,7 +39,7 @@ const SUBTITLE = 'Una liga para gente de bien'
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 // ==============================
-//  HELPERS DE FORMATO / UI
+/* HELPERS DE FORMATO / UI */
 // ==============================
 function initials(name) {
   return (name || '?')
@@ -71,7 +73,7 @@ function fmtSigned(n) {
 }
 
 // ==============================
-//  CABECERA DE SECCIÓN (colapsable)
+/* CABECERA DE SECCIÓN (colapsable) */
 // ==============================
 function SectionHeader({ title, subtitle, collapsed, onToggle }) {
   return (
@@ -105,7 +107,7 @@ function SectionHeader({ title, subtitle, collapsed, onToggle }) {
 }
 
 // ==============================
-//  COMPONENTE PRINCIPAL
+/* COMPONENTE PRINCIPAL */
 // ==============================
 export default function App() {
   // ------------------------------
@@ -135,6 +137,17 @@ export default function App() {
   const [collapsedRanking, setCollapsedRanking] = useState(false)
   const [collapsedSummary, setCollapsedSummary] = useState(false)
   const [collapsedHistory, setCollapsedHistory] = useState(false)
+
+  // ------------------------------
+  // DETECCIÓN DE MÓVIL (para animación del campeón)
+  // ------------------------------
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640) // < sm
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // ------------------------------
   // CARGA DE DATOS DESDE SUPABASE
@@ -310,8 +323,8 @@ export default function App() {
     })
   }, [rankingRows, participants])
 
-  const podium = useMemo(() => ranking.slice(0, 3), [ranking])
-  const tailTwo = useMemo(() => ranking.slice(-2).reverse(), [ranking]) // penúltimo y último
+  const podium     = useMemo(() => ranking.slice(0, 3), [ranking])
+  const tailTwo    = useMemo(() => ranking.slice(-2).reverse(), [ranking]) // penúltimo y último
   const middlePack = useMemo(() => ranking.slice(3, Math.max(3, ranking.length - 2)), [ranking])
 
   // ------------------------------
@@ -397,24 +410,34 @@ export default function App() {
                     transition={{ duration: 0.18 }}
                     className="mt-4 space-y-6"
                   >
-                    {/* --- Podio (oro/plata/bronce) --- */}
+                    {/* --- Podio (responsive, móvil con Flex y sm+ con Grid) --- */}
                     <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
                       {/* Plata (2º) */}
                       <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
                         {podium[1] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
+                            {/* Premio bote bajo el icono */}
                             <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                               Premio bote: <strong>30%</strong>
                             </div>
+
+                            {/* Nombre y equipo */}
                             <div className="mt-2 font-semibold">{podium[1].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {podium[1].team_name || 'Equipo'}
+                            </div>
+
+                            {/* Puntos totales */}
                             <div className="mt-2 text-sm">
                               <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
                               <span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span>
                             </div>
+
+                            {/* Desglose */}
                             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                               Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> ·{' '}
                               <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
@@ -427,7 +450,12 @@ export default function App() {
                       {/* Oro (1º) */}
                       <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
                         {podium[0] && (
-                          <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
+                          <button
+                            type="button"
+                            onClick={celebrateChampion}
+                            className="w-full"
+                            title="¡Celebrar al líder!"
+                          >
                             <motion.div
                               className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]"
                               initial={isMobile ? { scale: 0.94, y: 6, opacity: 0.95 } : false}
@@ -436,18 +464,30 @@ export default function App() {
                               whileHover={{ scale: 1.015 }}
                               whileTap={{ scale: 0.985 }}
                             >
+                              {/* Icono / trofeo */}
                               <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
                                 <Trophy className="w-8 h-8" />
                               </div>
+                              {/* Premio bote bajo el icono */}
                               <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                                 Premio bote: <strong>50%</strong>
                               </div>
+
+                              {/* Nombre y equipo */}
                               <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {podium[0].team_name || 'Equipo'}
+                              </div>
+
+                              {/* Puntos totales */}
                               <div className="mt-2">
                                 <span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span>
-                                <span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span>
+                                <span className={signTextClass(podium[0].score)}>
+                                  {fmtSigned(podium[0].score)}
+                                </span>
                               </div>
+
+                              {/* Desglose */}
                               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> ·{' '}
                                 <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
@@ -462,18 +502,28 @@ export default function App() {
                       <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
                         {podium[2] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
+                            {/* Premio bote bajo el icono */}
                             <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                               Premio bote: <strong>20%</strong>
                             </div>
+
+                            {/* Nombre y equipo */}
                             <div className="mt-2 font-semibold">{podium[2].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {podium[2].team_name || 'Equipo'}
+                            </div>
+
+                            {/* Puntos totales */}
                             <div className="mt-2 text-sm">
                               <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
                               <span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span>
                             </div>
+
+                            {/* Desglose */}
                             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                               Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> ·{' '}
                               <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
@@ -501,7 +551,7 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {/* Score + desglose solicitado a la derecha */}
+                              {/* Score + desglose a la derecha */}
                               <div className="text-right">
                                 <div className={['text-sm font-semibold', signTextClass(p.score)].join(' ')}>
                                   {fmtSigned(p.score)}
@@ -537,7 +587,7 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {/* Score + desglose solicitado a la derecha */}
+                              {/* Score + desglose a la derecha */}
                               <div className="text-right">
                                 <div className="text-sm font-bold text-rose-700 dark:text-rose-300">
                                   {fmtSigned(p.score)}
@@ -867,7 +917,7 @@ export default function App() {
          FOOTER
       ----------------------------------- */}
       <footer className="mt-16 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-sm text-slate-600 dark:text-slate-400">
-        Desarrollado con <span className="mx-1">❤️</span> por <strong>Pepe Sancho</strong>
+        Desarrollado con <span className="mx-1">❤️</span> por el <strong>Dictador del Fantasy</strong>
       </footer>
     </div>
   )
