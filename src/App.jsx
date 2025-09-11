@@ -398,25 +398,19 @@ export default function App() {
                     className="mt-4 space-y-6"
                   >
                     {/* --- Podio (oro/plata/bronce) --- */}
-                    {/* --- Podio (responsive) --- */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end justify-items-center">
+                    <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
                       {/* Plata (2º) */}
-                      <div className="text-center order-3 sm:order-1 w-full">
+                      <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
                         {podium[1] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
-                            {/* Premio bote bajo el icono */}
                             <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                               Premio bote: <strong>30%</strong>
                             </div>
-
                             <div className="mt-2 font-semibold">{podium[1].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {podium[1].team_name || 'Equipo'}
-                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
                             <div className="mt-2 text-sm">
                               <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
                               <span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span>
@@ -431,61 +425,51 @@ export default function App() {
                       </div>
 
                       {/* Oro (1º) */}
-                      <div className="text-center order-1 sm:order-2 w-full">
+                      <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
                         {podium[0] && (
-                          <button
-                            type="button"
-                            onClick={celebrateChampion}
-                            className="w-full"
-                            title="¡Celebrar al líder!"
-                          >
-                            <div className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]">
-                              {/* Icono / trofeo */}
+                          <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
+                            <motion.div
+                              className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]"
+                              initial={isMobile ? { scale: 0.94, y: 6, opacity: 0.95 } : false}
+                              animate={isMobile ? { scale: 1, y: 0, opacity: 1 } : {}}
+                              transition={{ type: 'spring', stiffness: 220, damping: 18, mass: 0.6 }}
+                              whileHover={{ scale: 1.015 }}
+                              whileTap={{ scale: 0.985 }}
+                            >
                               <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
                                 <Trophy className="w-8 h-8" />
                               </div>
-                              {/* Premio bote bajo el icono */}
                               <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                                 Premio bote: <strong>50%</strong>
                               </div>
-
                               <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                {podium[0].team_name || 'Equipo'}
-                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
                               <div className="mt-2">
                                 <span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span>
-                                <span className={signTextClass(podium[0].score)}>
-                                  {fmtSigned(podium[0].score)}
-                                </span>
+                                <span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span>
                               </div>
                               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> ·{' '}
                                 <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
                                 <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span>
                               </div>
-                            </div>
+                            </motion.div>
                           </button>
                         )}
                       </div>
 
                       {/* Bronce (3º) */}
-                      <div className="text-center order-2 sm:order-3 w-full">
+                      <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
                         {podium[2] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
-                            {/* Premio bote bajo el icono */}
                             <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                               Premio bote: <strong>20%</strong>
                             </div>
-
                             <div className="mt-2 font-semibold">{podium[2].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {podium[2].team_name || 'Equipo'}
-                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
                             <div className="mt-2 text-sm">
                               <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
                               <span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span>
