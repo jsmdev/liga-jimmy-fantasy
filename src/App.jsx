@@ -16,7 +16,6 @@ import Select from '@/components/ui/Select.jsx'
 
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
-
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 function initials(name) { return (name || '?').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 3).toUpperCase() }
@@ -39,16 +38,42 @@ export default function App() {
   const [sortDir, setSortDir] = useState('desc')
 
   const [lightboxUrl, setLightboxUrl] = useState(null)
+  const [carousel, setCarousel] = useState([]) // fotos del carrusel desde Supabase
 
   async function load() {
     setLoading(true)
-    const { data: parts, error: e1 } = await supabase.from('participants').select('id,name,team_name,photo_url').order('name')
-    if (e1) console.error(e1)
-    const { data: pens, error: e2 } = await supabase.from('penalties').select('id,participant_id,amount,reason,date').order('date', { ascending: false })
-    if (e2) console.error(e2)
-    setParticipants(parts || [])
-    setPenalties(pens || [])
-    setLoading(false)
+    try {
+      const { data: parts } = await supabase
+        .from('participants')
+        .select('id,name,team_name,photo_url')
+        .order('name')
+
+      const { data: pens } = await supabase
+        .from('penalties')
+        .select('id,participant_id,amount,reason,date')
+        .order('date', { ascending: false })
+
+      const { data: photos } = await supabase
+        .from('carousel_photos')
+        .select('url, alt, caption, position, is_active')
+        .eq('is_active', true)
+        .order('position', { ascending: true })
+
+      setParticipants(parts || [])
+      setPenalties(pens || [])
+      setCarousel((photos || []).map(p => ({
+        url: p.url,
+        alt: p.alt || '',
+        caption: p.caption || ''
+      })))
+    } catch (e) {
+      console.error('load() error', e)
+      setParticipants([])
+      setPenalties([])
+      setCarousel([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -122,11 +147,12 @@ export default function App() {
   const totalGlobal = Object.values(totals).reduce((a, b) => a + b, 0)
 
   const carouselPhotos = useMemo(() => {
-    const pics = participants
-      .map(p => p.photo_url ? ({ url: p.photo_url, alt: p.name, caption: p.team_name || p.name }) : null)
+    if (Array.isArray(carousel) && carousel.length) return carousel
+    const pics = (participants || [])
+      .map(p => p?.photo_url ? ({ url: p.photo_url, alt: p.name, caption: p.team_name || p.name }) : null)
       .filter(Boolean)
-    return pics.length ? [...pics, ...pics.slice(0, Math.min(5, pics.length))] : []
-  }, [participants])
+    return pics
+  }, [carousel, participants])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
@@ -144,9 +170,11 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <KonamiEasterEgg />
 
-        <section>
-          <PhotoCarousel photos={carouselPhotos} />
-        </section>
+        {Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
+          <section>
+            <PhotoCarousel photos={carouselPhotos} />
+          </section>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300"><Loader2 className="w-5 h-5 mr-2 animate-spin" />Cargando datos…</div>
