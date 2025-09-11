@@ -563,6 +563,9 @@ export default function App() {
           </>
         )}
       </main>
+      <footer className="mt-16 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-sm text-slate-600 dark:text-slate-400">
+        Desarrollado con <span className="mx-1">❤️</span> por el <strong>Dictador del Fantasy</strong>
+      </footer>
     </div>
   )
 }
