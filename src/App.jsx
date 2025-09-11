@@ -323,8 +323,8 @@ export default function App() {
     })
   }, [rankingRows, participants])
 
-  const podium     = useMemo(() => ranking.slice(0, 3), [ranking])
-  const tailTwo    = useMemo(() => ranking.slice(-2).reverse(), [ranking]) // penúltimo y último
+  const podium = useMemo(() => ranking.slice(0, 3), [ranking])
+  const tailTwo = useMemo(() => ranking.slice(-2), [ranking]) // penúltimo (n-1) y último (n)
   const middlePack = useMemo(() => ranking.slice(3, Math.max(3, ranking.length - 2)), [ranking])
 
   // ------------------------------
@@ -579,7 +579,7 @@ export default function App() {
                             <li key={p.id} className="py-2 flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="w-7 h-7 text-xs rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 flex items-center justify-center">
-                                  {ranking.findIndex(r => r.id === p.id) + 1}
+                                  {p.rank || (ranking.findIndex(r => r.id === p.id) + 1)}
                                 </div>
                                 <div>
                                   <div className="font-semibold text-rose-700 dark:text-rose-300">{p.name}</div>
