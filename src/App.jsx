@@ -7,19 +7,16 @@
 //    · Click en 1º = confeti + toast
 //    · Desglose: "Puntos Fantasy" (externo) y "Ajuste" (bonificaciones - sanciones)
 //    · "Premio bote: XX%" debajo del icono en Oro/Plata/Bronce
-//  - Resumen por participante (colapsable)
+//  - Resumen por participante (colapsable) con MODAL de detalle (click en card)
 //  - Historial con filtros integrados (colapsable)
 //  - Footer
 // ==============================
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-
-// Iconos e interacción visual
 import { ChevronDown, Loader2, ArrowUpDown, Trophy, Medal, ThumbsDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// Componentes propios
 import ThemeToggle from '@/components/ThemeToggle.jsx'
 import ConfettiButton, { blastConfetti } from '@/components/ConfettiButton.jsx'
 import KonamiEasterEgg from '@/components/KonamiEasterEgg.jsx'
@@ -30,75 +27,58 @@ import Avatar from '@/components/ui/Avatar.jsx'
 import Select from '@/components/ui/Select.jsx'
 
 // ==============================
-//  CONSTANTES GENERALES
+//  CONSTANTES
 // ==============================
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
-
-// Cliente Supabase (lee .env Vite)
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 // ==============================
-/* HELPERS DE FORMATO / UI */
+//  HELPERS
 // ==============================
 function initials(name) {
   return (name || '?')
-    .split(' ')
-    .filter(Boolean)
-    .map(n => n[0])
-    .join('')
-    .slice(0, 3)
-    .toUpperCase()
+    .split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 3).toUpperCase()
 }
-function fmtDate(d) {
-  try {
-    return new Date(d).toLocaleDateString()
-  } catch {
-    return d
-  }
+function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { return d } }
+function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
+function signTextClass(n) { if (n > 0) return 'text-emerald-700 dark:text-emerald-400'; if (n < 0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100' }
+function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
+function rankStyle(rank, total) {
+  if (!rank || !total) return { container: 'bg-slate-100 dark:bg-slate-800', badge: 'bg-slate-300 dark:bg-slate-600' }
+  if (rank === 1) return { container: 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/20', badge: 'bg-amber-400 text-amber-900' }
+  if (rank === 2) return { container: 'bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700', badge: 'bg-slate-300 text-slate-900 dark:bg-slate-400' }
+  if (rank === 3) return { container: 'bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/20', badge: 'bg-orange-400 text-orange-900' }
+  if (rank === total) return { container: 'bg-rose-50 dark:bg-rose-900/20', badge: 'bg-rose-500 text-white' }
+  if (rank === total - 1) return { container: 'bg-rose-50/70 dark:bg-rose-900/10', badge: 'bg-rose-400 text-white' }
+  return { container: 'bg-sky-50 dark:bg-sky-900/20', badge: 'bg-sky-400 text-sky-900' }
 }
-function signClass(n) {
-  if (n > 0) return 'bg-emerald-600'
-  if (n < 0) return 'bg-rose-600'
-  return 'bg-slate-600'
-}
-// Nota: 0 en negro (light) / blanco (dark) para mejor contraste
-function signTextClass(n) {
-  if (n > 0) return 'text-emerald-700 dark:text-emerald-400'
-  if (n < 0) return 'text-rose-700 dark:text-rose-400'
-  return 'text-slate-900 dark:text-slate-100'
-}
-function fmtSigned(n) {
-  return n > 0 ? '+' + n : String(n)
+function rankPhrase(rank, total) {
+  if (!rank || !total) return 'Posición no disponible'
+  if (rank === 1) return '¡Líder indiscutible! 🏆'
+  if (rank === 2) return 'Plata con brillo. 🥈'
+  if (rank === 3) return 'Bronce con estilo. 🥉'
+  if (rank === total) return 'Farolillo rojo, pero con pundonor. 🔴'
+  if (rank === total - 1) return 'Al filo del abismo… 👀'
+  return 'En el pelotón, acechando. 🚴‍♂️'
 }
 
 // ==============================
-/* CABECERA DE SECCIÓN (colapsable) */
+//  CABECERA DE SECCIÓN
 // ==============================
 function SectionHeader({ title, subtitle, collapsed, onToggle }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full text-left group"
-      aria-expanded={!collapsed}
-    >
+    <button type="button" onClick={onToggle} className="w-full text-left group" aria-expanded={!collapsed}>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">{subtitle}</p>
-          )}
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-600 dark:text-slate-400">{subtitle}</p>}
           <div className="mt-3 h-1 rounded-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-500 opacity-90" />
         </div>
-        <div
-          className={[
-            'shrink-0 rounded-xl border px-2.5 py-2 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 transition-transform',
-            collapsed ? 'rotate-0' : 'rotate-180',
-          ].join(' ')}
-        >
+        <div className={[
+          'shrink-0 rounded-xl border px-2.5 py-2 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 transition-transform',
+          collapsed ? 'rotate-0' : 'rotate-180',
+        ].join(' ')}>
           <ChevronDown className="w-5 h-5" />
         </div>
       </div>
@@ -107,74 +87,57 @@ function SectionHeader({ title, subtitle, collapsed, onToggle }) {
 }
 
 // ==============================
-/* COMPONENTE PRINCIPAL */
+//  APP
 // ==============================
 export default function App() {
-  // ------------------------------
-  // ESTADO DE DATOS BÁSICOS
-  // ------------------------------
+  // Datos
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // ------------------------------
-  // ESTADO FILTROS HISTORIAL
-  // ------------------------------
+  // Filtros historial
   const [filterParticipantId, setFilterParticipantId] = useState('all')
-  const [sortBy, setSortBy] = useState('date') // 'date' | 'name' | 'team' | 'amount'
-  const [sortDir, setSortDir] = useState('desc') // 'asc' | 'desc'
+  const [sortBy, setSortBy] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
-  // ------------------------------
-  // ESTADO VARIOS (lightbox / carrusel / ranking)
-  // ------------------------------
+  // Varios
   const [lightboxUrl, setLightboxUrl] = useState(null)
-  const [carousel, setCarousel] = useState([]) // fotos del carrusel desde Supabase
-  const [rankingRows, setRankingRows] = useState([]) // filas de v_ranking_current
+  const [carousel, setCarousel] = useState([])
+  const [rankingRows, setRankingRows] = useState([])
 
-  // ------------------------------
-  // ESTADO DE COLAPSABLES
-  // ------------------------------
+  // Colapsables
   const [collapsedRanking, setCollapsedRanking] = useState(false)
   const [collapsedSummary, setCollapsedSummary] = useState(false)
   const [collapsedHistory, setCollapsedHistory] = useState(false)
 
-  // ------------------------------
-  // DETECCIÓN DE MÓVIL (para animación del campeón)
-  // ------------------------------
+  // Móvil (animación campeón)
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 640) // < sm
-    onResize()
-    window.addEventListener('resize', onResize)
+    const onResize = () => setIsMobile(window.innerWidth < 640)
+    onResize(); window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // ------------------------------
-  // CARGA DE DATOS DESDE SUPABASE
-  // ------------------------------
+  // Cargar datos
   async function load() {
     setLoading(true)
     try {
-      // Participantes (para nombres, equipos y fotos)
       const { data: parts } = await supabase
         .from('participants')
-        .select('id,name,team_name,photo_url')
+        .select('id,name,team_name,photo_url,photo_real_url,coach_photo_url,ref_coach')
         .order('name')
 
-      // Penalizaciones/bonificaciones (historial y totales por participante)
       const { data: pens } = await supabase
         .from('penalties')
         .select('id,participant_id,amount,reason,date')
         .order('date', { ascending: false })
 
-      // Carrusel (tabla dedicada)
       const { data: photos } = await supabase
         .from('carousel_photos')
         .select('url, alt, caption, position, is_active')
         .eq('is_active', true)
         .order('position', { ascending: true })
 
-      // Ranking desde servidor (vista con externos + penalizaciones)
       const { data: rank } = await supabase
         .from('v_ranking_current')
         .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
@@ -182,31 +145,16 @@ export default function App() {
 
       setParticipants(parts || [])
       setPenalties(pens || [])
-      setCarousel(
-        (photos || []).map(p => ({
-          url: p.url,
-          alt: p.alt || '',
-          caption: p.caption || '',
-        })),
-      )
+      setCarousel((photos || []).map(p => ({ url: p.url, alt: p.alt || '', caption: p.caption || '' })))
       setRankingRows(rank || [])
     } catch (e) {
       console.error('load() error', e)
-      setParticipants([])
-      setPenalties([])
-      setCarousel([])
-      setRankingRows([])
-    } finally {
-      setLoading(false)
-    }
+      setParticipants([]); setPenalties([]); setCarousel([]); setRankingRows([])
+    } finally { setLoading(false) }
   }
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
-  // ------------------------------
-  // TOTALES POR PARTICIPANTE (para tarjetas del resumen)
-  // ------------------------------
+  // Totales por participante
   const totals = useMemo(() => {
     const map = Object.fromEntries(participants.map(p => [p.id, 0]))
     for (const pen of penalties) {
@@ -215,80 +163,43 @@ export default function App() {
     return map
   }, [participants, penalties])
 
-  // ------------------------------
-  // DESGLOSE (SANCIONES / BONIFICACIONES) POR PARTICIPANTE (resumen)
-  // ------------------------------
+  // Desglose por participante
   const breakdown = useMemo(() => {
-    const map = Object.fromEntries(
-      participants.map(p => [
-        p.id,
-        { sanciones: 0, sancionesTotal: 0, bonificaciones: 0, bonificacionesTotal: 0 },
-      ]),
-    )
+    const map = Object.fromEntries(participants.map(p => [p.id, { sanciones: 0, sancionesTotal: 0, bonificaciones: 0, bonificacionesTotal: 0 }]))
     for (const pen of penalties) {
-      const entry = map[pen.participant_id]
-      if (!entry) continue
+      const entry = map[pen.participant_id]; if (!entry) continue
       const amount = Number(pen.amount) || 0
-      if (amount < 0) {
-        entry.sanciones++
-        entry.sancionesTotal += amount
-      } else if (amount > 0) {
-        entry.bonificaciones++
-        entry.bonificacionesTotal += amount
-      }
+      if (amount < 0) { entry.sanciones++; entry.sancionesTotal += amount }
+      else if (amount > 0) { entry.bonificaciones++; entry.bonificacionesTotal += amount }
     }
     return map
   }, [participants, penalties])
 
-  // ------------------------------
-  // DESGLOSE GLOBAL (para cabecera del resumen)
-  // ------------------------------
+  // Desglose global
   const globalBreakdown = useMemo(() => {
-    let sanciones = 0,
-      sancionesTotal = 0,
-      bonificaciones = 0,
-      bonificacionesTotal = 0
-    let totalCount = 0,
-      totalSum = 0
-
+    let sanciones = 0, sancionesTotal = 0, bonificaciones = 0, bonificacionesTotal = 0
+    let totalCount = 0, totalSum = 0
     for (const pen of penalties) {
       const amount = Number(pen.amount) || 0
-      totalCount++
-      totalSum += amount
-      if (amount < 0) {
-        sanciones++
-        sancionesTotal += amount
-      } else if (amount > 0) {
-        bonificaciones++
-        bonificacionesTotal += amount
-      }
+      totalCount++; totalSum += amount
+      if (amount < 0) { sanciones++; sancionesTotal += amount }
+      else if (amount > 0) { bonificaciones++; bonificacionesTotal += amount }
     }
     return { sanciones, sancionesTotal, bonificaciones, bonificacionesTotal, totalCount, totalSum }
   }, [penalties])
 
-  // ------------------------------
-  // HISTORIAL: FILAS UNIDAS + ORDENACIÓN
-  // ------------------------------
+  // Historial unido + orden
   const rows = useMemo(() => {
     const joined = penalties.map(p => {
       const part = participants.find(pp => pp.id === p.participant_id)
-      return {
-        ...p,
-        _name: part?.name || '',
-        _team: part?.team_name || '',
-        _photo: part?.photo_url || '',
-        _date: p.date ? new Date(p.date) : null,
-      }
+      return { ...p, _name: part?.name || '', _team: part?.team_name || '', _photo: part?.photo_url || '', _date: p.date ? new Date(p.date) : null }
     })
     const dir = sortDir === 'asc' ? 1 : -1
     joined.sort((a, b) => {
       switch (sortBy) {
-        case 'name':
-          return a._name.localeCompare(b._name) * dir
-        case 'team':
-          return a._team.localeCompare(b._team) * dir
-        case 'amount':
-          return ((a.amount || 0) - (b.amount || 0)) * dir
+        case 'name': return a._name.localeCompare(b._name) * dir
+        case 'team': return a._team.localeCompare(b._team) * dir
+        case 'amount': return ((a.amount || 0) - (b.amount || 0)) * dir
         case 'date':
         default: {
           const at = a._date ? a._date.getTime() : 0
@@ -300,62 +211,56 @@ export default function App() {
     return joined
   }, [penalties, participants, sortBy, sortDir])
 
-  // ------------------------------
-  // RANKING (desde servidor) + mapeo a la UI
-  //  - p.ext  = external_total  (Puntos Fantasy)
-  //  - p.pen  = penalty_total   (Ajuste = bonificaciones - sanciones)
-  //  - p.score = ext + pen
-  // ------------------------------
+  // Ranking
   const ranking = useMemo(() => {
-    const rows = (rankingRows || []).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999))
-    return rows.map(r => {
-      const p = participants.find(pp => pp.id === r.participant_id)
+    const r = (rankingRows || []).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999))
+    return r.map(row => {
+      const p = participants.find(pp => pp.id === row.participant_id)
       return {
-        id: r.participant_id,
-        name: r.name,
-        team_name: r.team_name,
+        id: row.participant_id,
+        name: row.name,
+        team_name: row.team_name,
         photo_url: p?.photo_url || '',
-        ext: Number(r.external_total) || 0,
-        pen: Number(r.penalty_total) || 0,
-        score: Number(r.score) || 0,
-        rank: Number(r.rank) || 0,
+        ext: Number(row.external_total) || 0,
+        pen: Number(row.penalty_total) || 0,
+        score: Number(row.score) || 0,
+        rank: Number(row.rank) || 0,
       }
     })
   }, [rankingRows, participants])
 
   const podium = useMemo(() => ranking.slice(0, 3), [ranking])
-  const tailTwo = useMemo(() => ranking.slice(-2), [ranking]) // penúltimo (n-1) y último (n)
+  const tailTwo = useMemo(() => ranking.slice(-2), [ranking])
   const middlePack = useMemo(() => ranking.slice(3, Math.max(3, ranking.length - 2)), [ranking])
 
-  // ------------------------------
-  // CARRUSEL (solo datos de tabla; sin fallback)
-  // ------------------------------
+  // Carrusel
   const carouselPhotos = useMemo(() => carousel, [carousel])
 
-  // ------------------------------
-  // UTILIDAD: TOAST RÁPIDO (para "¡Campeón!")
-  // ------------------------------
+  // Toast + confeti
   function showToast(message) {
     const el = document.createElement('div')
     el.textContent = message
-    el.className =
-      'fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-xl shadow-lg z-[10000]'
-    document.body.appendChild(el)
-    setTimeout(() => el.remove(), 1800)
+    el.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-xl shadow-lg z-[10000]'
+    document.body.appendChild(el); setTimeout(() => el.remove(), 1800)
   }
-  function celebrateChampion() {
-    blastConfetti({ originY: 0.7, particleCount: 180 })
-    showToast('🏆 ¡Campeón!')
-  }
+  function celebrateChampion() { blastConfetti({ originY: 0.7, particleCount: 180 }); showToast('🏆 ¡Campeón!') }
+
+  // Modal detalle
+  const [detailParticipant, setDetailParticipant] = useState(null)
+  const openDetail = (p) => { setLightboxUrl(null); setDetailParticipant(p) }
+  const closeDetail = () => setDetailParticipant(null)
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && closeDetail()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ==============================
   //  RENDER
   // ==============================
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
-      {/* ---------------------------------
-         CABECERA SUPERIOR (título + acciones)
-      ----------------------------------- */}
+      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
           <div>
@@ -370,28 +275,22 @@ export default function App() {
         </div>
       </header>
 
-      {/* ---------------------------------
-         CONTENIDO PRINCIPAL
-      ----------------------------------- */}
+      {/* Main */}
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <KonamiEasterEgg />
 
-        {/* ===== CARRUSEL (solo si hay fotos en la tabla) ===== */}
+        {/* Carrusel */}
         {Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
-          <section>
-            <PhotoCarousel photos={carouselPhotos} />
-          </section>
+          <section><PhotoCarousel photos={carouselPhotos} /></section>
         )}
 
         {loading ? (
-          // ----- ESTADO CARGANDO -----
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            Cargando datos…
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Cargando datos…
           </div>
         ) : (
           <>
-            {/* ===== RANKING (colapsable) ===== */}
+            {/* Ranking */}
             <section>
               <SectionHeader
                 title="Ranking actual de la liga"
@@ -399,7 +298,6 @@ export default function App() {
                 collapsed={collapsedRanking}
                 onToggle={() => setCollapsedRanking(v => !v)}
               />
-
               <AnimatePresence initial={false}>
                 {!collapsedRanking && (
                   <motion.div
@@ -410,131 +308,66 @@ export default function App() {
                     transition={{ duration: 0.18 }}
                     className="mt-4 space-y-6"
                   >
-                    {/* --- Podio (responsive, móvil con Flex y sm+ con Grid) --- */}
+                    {/* Podio */}
                     <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
-                      {/* Plata (2º) */}
+                      {/* Plata */}
                       <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
                         {podium[1] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
-                            {/* Premio bote bajo el icono */}
-                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                              Premio bote: <strong>30%</strong>
-                            </div>
-
-                            {/* Nombre y equipo */}
+                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>30%</strong></div>
                             <div className="mt-2 font-semibold">{podium[1].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {podium[1].team_name || 'Equipo'}
-                            </div>
-
-                            {/* Puntos totales */}
-                            <div className="mt-2 text-sm">
-                              <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
-                              <span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span>
-                            </div>
-
-                            {/* Desglose */}
-                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> ·{' '}
-                              <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
-                              <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span>
-                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
+                            <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span></div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span></div>
                           </div>
                         )}
                       </div>
 
-                      {/* Oro (1º) */}
+                      {/* Oro */}
                       <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
                         {podium[0] && (
-                          <button
-                            type="button"
-                            onClick={celebrateChampion}
-                            className="w-full"
-                            title="¡Celebrar al líder!"
-                          >
+                          <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
                             <motion.div
                               className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]"
                               initial={isMobile ? { scale: 0.94, y: 6, opacity: 0.95 } : false}
                               animate={isMobile ? { scale: 1, y: 0, opacity: 1 } : {}}
                               transition={{ type: 'spring', stiffness: 220, damping: 18, mass: 0.6 }}
-                              whileHover={{ scale: 1.015 }}
-                              whileTap={{ scale: 0.985 }}
+                              whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
                             >
-                              {/* Icono / trofeo */}
                               <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
                                 <Trophy className="w-8 h-8" />
                               </div>
-                              {/* Premio bote bajo el icono */}
-                              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                                Premio bote: <strong>50%</strong>
-                              </div>
-
-                              {/* Nombre y equipo */}
+                              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>50%</strong></div>
                               <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                {podium[0].team_name || 'Equipo'}
-                              </div>
-
-                              {/* Puntos totales */}
-                              <div className="mt-2">
-                                <span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span>
-                                <span className={signTextClass(podium[0].score)}>
-                                  {fmtSigned(podium[0].score)}
-                                </span>
-                              </div>
-
-                              {/* Desglose */}
-                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> ·{' '}
-                                <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
-                                <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span>
-                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
+                              <div className="mt-2"><span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span><span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span></div>
+                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span></div>
                             </motion.div>
                           </button>
                         )}
                       </div>
 
-                      {/* Bronce (3º) */}
+                      {/* Bronce */}
                       <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
                         {podium[2] && (
                           <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            {/* Icono / medalla */}
                             <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
                               <Medal className="w-7 h-7" />
                             </div>
-                            {/* Premio bote bajo el icono */}
-                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                              Premio bote: <strong>20%</strong>
-                            </div>
-
-                            {/* Nombre y equipo */}
+                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>20%</strong></div>
                             <div className="mt-2 font-semibold">{podium[2].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              {podium[2].team_name || 'Equipo'}
-                            </div>
-
-                            {/* Puntos totales */}
-                            <div className="mt-2 text-sm">
-                              <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
-                              <span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span>
-                            </div>
-
-                            {/* Desglose */}
-                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> ·{' '}
-                              <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
-                              <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span>
-                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
+                            <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span></div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span></div>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* --- El pelotón (resto, tonos neutros) --- */}
+                    {/* Pelotón */}
                     {middlePack.length > 0 && (
                       <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">El pelotón</div>
@@ -550,16 +383,10 @@ export default function App() {
                                   <div className="text-xs text-slate-500 dark:text-slate-400">{p.team_name || 'Equipo'}</div>
                                 </div>
                               </div>
-
-                              {/* Score + desglose a la derecha */}
                               <div className="text-right">
-                                <div className={['text-sm font-semibold', signTextClass(p.score)].join(' ')}>
-                                  {fmtSigned(p.score)}
-                                </div>
+                                <div className={['text-sm font-semibold', signTextClass(p.score)].join(' ')}>{fmtSigned(p.score)}</div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(p.ext)}</span> ·{' '}
-                                  <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
-                                  <span className={signTextClass(p.pen)}>{fmtSigned(p.pen)}</span>
+                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(p.ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(p.pen)}>{fmtSigned(p.pen)}</span>
                                 </div>
                               </div>
                             </li>
@@ -568,7 +395,7 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* --- Farolillo rojo (dos últimos) --- */}
+                    {/* Farolillo rojo */}
                     {tailTwo.length > 0 && (
                       <div className="glass border border-rose-300/70 dark:border-rose-700/70 rounded-2xl p-4">
                         <div className="text-sm font-semibold mb-2 text-rose-700 dark:text-rose-300 flex items-center gap-2">
@@ -586,16 +413,10 @@ export default function App() {
                                   <div className="text-xs text-rose-600/90 dark:text-rose-400/90">{p.team_name || 'Equipo'}</div>
                                 </div>
                               </div>
-
-                              {/* Score + desglose a la derecha */}
                               <div className="text-right">
-                                <div className="text-sm font-bold text-rose-700 dark:text-rose-300">
-                                  {fmtSigned(p.score)}
-                                </div>
+                                <div className="text-sm font-bold text-rose-700 dark:text-rose-300">{fmtSigned(p.score)}</div>
                                 <div className="text-xs text-rose-700/90 dark:text-rose-300/90">
-                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(p.ext)}</span> ·{' '}
-                                  <span title="Bonificaciones − Sanciones">Ajuste:</span>{' '}
-                                  <span className={signTextClass(p.pen)}>{fmtSigned(p.pen)}</span>
+                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(p.ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(p.pen)}>{fmtSigned(p.pen)}</span>
                                 </div>
                               </div>
                             </li>
@@ -608,7 +429,7 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* ===== RESUMEN (colapsable) ===== */}
+            {/* Resumen (cards → modal) */}
             <section>
               <SectionHeader
                 title="Resumen de penalizaciones"
@@ -616,139 +437,96 @@ export default function App() {
                 onToggle={() => setCollapsedSummary(v => !v)}
               />
 
-              {/* Totales globales */}
               <AnimatePresence initial={false}>
                 {!collapsedSummary && (
-                  <motion.div
-                    key="summary-totals"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-3 flex items-center gap-4 text-sm flex-wrap"
-                  >
-                    {/* Sanciones */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
-                      <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {globalBreakdown.sanciones} [
-                        <span className={signTextClass(globalBreakdown.sancionesTotal)}>
-                          {fmtSigned(globalBreakdown.sancionesTotal)}
+                  <>
+                    {/* Totales globales */}
+                    <motion.div
+                      key="summary-totals"
+                      initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}
+                      className="mt-3 flex items-center gap-4 text-sm flex-wrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          {globalBreakdown.sanciones} [<span className={signTextClass(globalBreakdown.sancionesTotal)}>{fmtSigned(globalBreakdown.sancionesTotal)}</span>]
                         </span>
-                        ]
-                      </span>
-                    </div>
-
-                    {/* Bonificaciones */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
-                      <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {globalBreakdown.bonificaciones} [
-                        <span className={signTextClass(globalBreakdown.bonificacionesTotal)}>
-                          {fmtSigned(globalBreakdown.bonificacionesTotal)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          {globalBreakdown.bonificaciones} [<span className={signTextClass(globalBreakdown.bonificacionesTotal)}>{fmtSigned(globalBreakdown.bonificacionesTotal)}</span>]
                         </span>
-                        ]
-                      </span>
-                    </div>
-
-                    {/* Total global */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-700 dark:text-slate-300">Total global:</span>
-                      <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {globalBreakdown.totalCount} [
-                        <span className={signTextClass(globalBreakdown.totalSum)}>
-                          {fmtSigned(globalBreakdown.totalSum)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 dark:text-slate-300">Total global:</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          {globalBreakdown.totalCount} [<span className={signTextClass(globalBreakdown.totalSum)}>{fmtSigned(globalBreakdown.totalSum)}</span>]
                         </span>
-                        ]
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      </div>
+                    </motion.div>
 
-              {/* Grid de tarjetas por participante */}
-              <AnimatePresence initial={false}>
-                {!collapsedSummary && (
-                  <motion.div
-                    key="summary-grid"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4"
-                  >
-                    {participants.map((p, idx) => (
-                      <motion.div
-                        key={p.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: idx * 0.04 }}
-                      >
-                        <Card className="glass card-float">
-                          <CardHeader className="pb-2">
-                            <div className="flex items-center gap-3">
-                              <div
-                                onClick={() => p.photo_url && setLightboxUrl(p.photo_url)}
-                                className={p.photo_url ? 'cursor-zoom-in' : ''}
-                              >
-                                <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} size="lg" />
-                              </div>
-                              <div>
-                                <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                                  {p.name}
+                    {/* Grid de tarjetas (el onClick va en el contenedor motion.div) */}
+                    <motion.div
+                      key="summary-grid"
+                      initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}
+                      className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                    >
+                      {participants.map((p, idx) => (
+                        <motion.div
+                          key={p.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: idx * 0.04 }}
+                          onClick={() => { /* console.log('openDetail', p.name) */ openDetail(p) }}
+                          className="cursor-pointer"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && openDetail(p)}
+                        >
+                          <Card className="glass card-float hover:shadow-lg hover:-translate-y-0.5 transition">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  onClick={(e) => { e.stopPropagation(); p.photo_url && setLightboxUrl(p.photo_url) }}
+                                  className={p.photo_url ? 'cursor-zoom-in' : ''}
+                                >
+                                  <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} size="lg" />
                                 </div>
-                                <div className="text-xs text-slate-600 dark:text-slate-400 truncate">
-                                  {p.team_name || 'Equipo sin nombre'}
+                                <div>
+                                  <div className="text-base font-semibold text-slate-900 dark:text-slate-100">{p.name}</div>
+                                  <div className="text-xs text-slate-600 dark:text-slate-400 truncate">{p.team_name || 'Equipo sin nombre'}</div>
                                 </div>
                               </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pt-0">
-                            {/* Total */}
-                            <div className="flex items-center justify-start gap-3">
-                              <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Total:</span>
-                              <Badge
-                                className={['px-3 py-1.5 text-lg font-bold text-white', signClass(totals[p.id] || 0)].join(
-                                  ' ',
-                                )}
-                              >
-                                {fmtSigned(totals[p.id] || 0)}
-                              </Badge>
-                            </div>
-
-                            {/* Sanciones */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
-                              <span className="font-medium text-slate-900 dark:text-slate-100">
-                                {(breakdown[p.id]?.sanciones || 0)} [
-                                <span className={signTextClass(breakdown[p.id]?.sancionesTotal || 0)}>
-                                  {fmtSigned(breakdown[p.id]?.sancionesTotal || 0)}
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="flex items-center justify-start gap-3">
+                                <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Total:</span>
+                                <Badge className={['px-3 py-1.5 text-lg font-bold text-white', signClass(totals[p.id] || 0)].join(' ')}>{fmtSigned(totals[p.id] || 0)}</Badge>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-700 dark:text-slate-300">Sanciones:</span>
+                                <span className="font-medium text-slate-900 dark:text-slate-100">
+                                  {(breakdown[p.id]?.sanciones || 0)} [<span className={signTextClass(breakdown[p.id]?.sancionesTotal || 0)}>{fmtSigned(breakdown[p.id]?.sancionesTotal || 0)}</span>]
                                 </span>
-                                ]
-                              </span>
-                            </div>
-
-                            {/* Bonificaciones */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
-                              <span className="font-medium text-slate-900 dark:text-slate-100">
-                                {(breakdown[p.id]?.bonificaciones || 0)} [
-                                <span className={signTextClass(breakdown[p.id]?.bonificacionesTotal || 0)}>
-                                  {fmtSigned(breakdown[p.id]?.bonificacionesTotal || 0)}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-700 dark:text-slate-300">Bonificaciones:</span>
+                                <span className="font-medium text-slate-900 dark:text-slate-100">
+                                  {(breakdown[p.id]?.bonificaciones || 0)} [<span className={signTextClass(breakdown[p.id]?.bonificacionesTotal || 0)}>{fmtSigned(breakdown[p.id]?.bonificacionesTotal || 0)}</span>]
                                 </span>
-                                ]
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </>
                 )}
               </AnimatePresence>
             </section>
 
-            {/* ===== HISTORIAL (colapsable) ===== */}
+            {/* Historial */}
             <section className="mt-10">
               <SectionHeader
                 title="Historial de penalizaciones/bonificaciones"
@@ -756,89 +534,37 @@ export default function App() {
                 collapsed={collapsedHistory}
                 onToggle={() => setCollapsedHistory(v => !v)}
               />
-
               <AnimatePresence initial={false}>
                 {!collapsedHistory && (
-                  <motion.div
-                    key="history-body"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-4"
-                  >
-                    {/* --- Filtros del historial (debajo del título, ocultos al colapsar) --- */}
+                  <motion.div key="history-body" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className="mt-4">
                     <div className="mt-4 pb-4 grid gap-3 lg:grid-cols-4">
-                      {/* Participante */}
                       <div className="lg:col-span-2">
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Participante</label>
-                        <Select
-                          value={filterParticipantId}
-                          onChange={v => setFilterParticipantId(v)}
-                          options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]}
-                          className="w-full"
-                        />
+                        <Select value={filterParticipantId} onChange={v => setFilterParticipantId(v)} options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]} className="w-full" />
                       </div>
-
-                      {/* Ordenar por */}
                       <div>
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Ordenar por</label>
-                        <Select
-                          value={sortBy}
-                          onChange={setSortBy}
-                          options={[
-                            { value: 'date', label: 'Fecha' },
-                            { value: 'name', label: 'Nombre participante' },
-                            { value: 'team', label: 'Nombre equipo' },
-                            { value: 'amount', label: 'Penalización' },
-                          ]}
-                          className="w-full"
-                        />
+                        <Select value={sortBy} onChange={setSortBy} options={[{ value: 'date', label: 'Fecha' }, { value: 'name', label: 'Nombre participante' }, { value: 'team', label: 'Nombre equipo' }, { value: 'amount', label: 'Penalización' }]} className="w-full" />
                       </div>
-
-                      {/* Dirección */}
                       <div>
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Dirección</label>
-                        <Select
-                          value={sortDir}
-                          onChange={setSortDir}
-                          options={[
-                            { value: 'asc', label: 'Ascendente' },
-                            { value: 'desc', label: 'Descendente' },
-                          ]}
-                          className="w-full"
-                        />
+                        <Select value={sortDir} onChange={setSortDir} options={[{ value: 'asc', label: 'Ascendente' }, { value: 'desc', label: 'Descendente' }]} className="w-full" />
                       </div>
-
-                      {/* Botón limpiar (solo si hay variaciones respecto a los valores por defecto) */}
                       {(filterParticipantId !== 'all' || sortBy !== 'date' || sortDir !== 'desc') && (
                         <div className="lg:col-span-4 flex justify-end">
-                          <button
-                            onClick={() => {
-                              setFilterParticipantId('all')
-                              setSortBy('date')
-                              setSortDir('desc')
-                            }}
-                            className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition"
-                          >
+                          <button onClick={() => { setFilterParticipantId('all'); setSortBy('date'); setSortDir('desc') }} className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition">
                             Limpiar filtros
                           </button>
                         </div>
                       )}
                     </div>
 
-                    {/* --- Tabla del historial --- */}
                     <Card className="glass card-float overflow-hidden">
-                      {/* (Opcional) Puedes eliminar este CardHeader si no quieres subtítulo interno */}
                       <CardHeader className="flex flex-row items-center justify-between gap-4">
                         <div>
                           <CardTitle>Historial de penalizaciones</CardTitle>
                           <CardDescription>
-                            Consulta detallada de sanciones y bonificaciones. Orden actual:{' '}
-                            <strong>
-                              {({ date: 'Fecha', name: 'Nombre', team: 'Equipo', amount: 'Penalización' })[sortBy]}
-                            </strong>{' '}
-                            <ArrowUpDown className="inline w-4 h-4" />
+                            Consulta detallada de sanciones y bonificaciones. Orden actual: <strong>{({ date: 'Fecha', name: 'Nombre', team: 'Equipo', amount: 'Penalización' })[sortBy]}</strong> <ArrowUpDown className="inline w-4 h-4" />
                           </CardDescription>
                         </div>
                       </CardHeader>
@@ -859,31 +585,17 @@ export default function App() {
                               {rows
                                 .filter(p => filterParticipantId === 'all' || p.participant_id === filterParticipantId)
                                 .map(pen => (
-                                  <tr
-                                    key={pen.id}
-                                    className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700"
-                                  >
+                                  <tr key={pen.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
                                     <td className="px-4 py-3">
-                                      <div
-                                        onClick={() => pen._photo && setLightboxUrl(pen._photo)}
-                                        className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}
-                                      >
+                                      <div onClick={() => pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}>
                                         <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
-                                      {pen._name || '—'}
-                                    </td>
+                                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{pen._name || '—'}</td>
                                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{pen._team || '—'}</td>
                                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(pen.date)}</td>
-                                    <td className="px-4 py-3">
-                                      <Badge className={['text-white', signClass(pen.amount)].join(' ')}>
-                                        {fmtSigned(pen.amount)}
-                                      </Badge>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
-                                      {pen.reason}
-                                    </td>
+                                    <td className="px-4 py-3"><Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge></td>
+                                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{pen.reason}</td>
                                   </tr>
                                 ))}
                             </tbody>
@@ -896,26 +608,149 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* ===== LIGHTBOX DE FOTOS ===== */}
+            {/* Lightbox foto */}
             {lightboxUrl && (
-              <div
-                className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-                onClick={() => setLightboxUrl(null)}
-              >
-                <img
-                  src={lightboxUrl}
-                  alt="Foto ampliada"
-                  className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-lg"
-                />
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setLightboxUrl(null)}>
+                <img src={lightboxUrl} alt="Foto ampliada" className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-lg" />
               </div>
             )}
+
+            {/* Modal detalle participante */}
+            {detailParticipant && (
+              <div
+                className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center px-4"
+                onClick={closeDetail}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="participant-modal-title"
+              >
+                <div
+                  className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-200/60 dark:ring-slate-800/60"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Cabecera */}
+                  <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-4">
+                    <div>
+                      <h3 id="participant-modal-title" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                        {detailParticipant.name}
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {detailParticipant.team_name || 'Equipo sin nombre'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={closeDetail}
+                      className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-sm"
+                      aria-label="Cerrar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Contenido */}
+                  <div className="p-6">
+                    {/* Banner de posición (debajo cabecera, encima del grid) */}
+                    {(() => {
+                      const rk = ranking.find(r => r.id === detailParticipant.id)
+                      const pos = rk?.rank
+                      const total = ranking.length
+                      const styles = rankStyle(pos, total)
+                      return (
+                        <div className={["mb-6 rounded-xl px-4 py-3 border", styles.container, "border-slate-200/70 dark:border-slate-800/60"].join(' ')}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className={["inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold", styles.badge].join(' ')}>
+                                #{pos || '—'}
+                              </span>
+                              <span className="text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100">
+                                {rankPhrase(pos, total)}
+                              </span>
+                            </div>
+                            {pos && pos <= 3 && (
+                              <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                {pos === 1 ? "Premio del bote: 50%" : pos === 2 ? "Premio del bote: 30%" : "Premio del bote: 20%"}
+                              </div>
+                            )}
+                            {pos && (pos === total || pos === total - 1) && (
+                              <div className="text-xs sm:text-sm text-rose-700 dark:text-rose-300">
+                                Escarnio público garantizado
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Grid de fotos e info */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Foto del equipo */}
+                      <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
+                        <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto del equipo</div>
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          {detailParticipant.photo_url ? (
+                            <img
+                              src={detailParticipant.photo_url}
+                              alt={`Equipo de ${detailParticipant.name}`}
+                              className="object-cover w-full h-full"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-sm">Sin imagen</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Foto real */}
+                      <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
+                        <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto real</div>
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          {detailParticipant.photo_real_url ? (
+                            <img
+                              src={detailParticipant.photo_real_url}
+                              alt={`Foto real de ${detailParticipant.name}`}
+                              className="object-cover w-full h-full"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-sm">Sin imagen</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Entrenador de referencia */}
+                      <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
+                        <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Entrenador de referencia</div>
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          {detailParticipant.coach_photo_url ? (
+                            <img
+                              src={detailParticipant.coach_photo_url}
+                              alt={`Entrenador de referencia de ${detailParticipant.name}`}
+                              className="object-cover w-full h-full"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-sm">Sin imagen</span>
+                          )}
+                        </div>
+                        <div className="mt-3 text-sm">
+                          <span className="text-slate-500 dark:text-slate-400 mr-1">Referente:</span>
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {detailParticipant.ref_coach || '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sin botón “Entendido”; cierre con ESC o clic fuera */}
+                  </div>
+                </div>
+              </div>
+            )}Gracias. 
           </>
         )}
       </main>
 
-      {/* ---------------------------------
-         FOOTER
-      ----------------------------------- */}
+      {/* Footer */}
       <footer className="mt-16 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-sm text-slate-600 dark:text-slate-400">
         Desarrollado con <span className="mx-1">❤️</span> por el <strong>Dictador del Fantasy</strong>
       </footer>
