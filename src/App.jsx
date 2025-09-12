@@ -1,17 +1,6 @@
 // ==============================
 //  APP PRINCIPAL – Liga Jimmy Fantasy
-//  - Carrusel (tabla Supabase carousel_photos)
-//  - Ranking desde servidor (v_ranking_current) con podio responsive y farolillo rojo
-//    · Móvil: Flex (Oro → Plata → Bronce)
-//    · sm+: Grid (Plata – Oro – Bronce)
-//    · Click en 1º = confeti + toast
-//    · Desglose: "Puntos Fantasy" (externo) y "Ajuste" (bonificaciones - sanciones)
-//    · "Premio bote: XX%" debajo del icono en Oro/Plata/Bronce
-//  - Resumen por participante (colapsable) con MODAL de detalle (click en card)
-//  - Historial con filtros integrados (colapsable)
-//  - Footer
 // ==============================
-
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { ChevronDown, Loader2, ArrowUpDown, Trophy, Medal, ThumbsDown } from 'lucide-react'
@@ -31,8 +20,10 @@ import Select from '@/components/ui/Select.jsx'
 // ==============================
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
+// Mostrar/ocultar carrusel globalmente
 const SHOW_CAROUSEL = false
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 // ==============================
 //  HELPERS
@@ -45,14 +36,16 @@ function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { re
 function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
 function signTextClass(n) { if (n > 0) return 'text-emerald-700 dark:text-emerald-400'; if (n < 0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100' }
 function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
+
+// --- Helpers de estilo y frase según posición en ranking ---
 function rankStyle(rank, total) {
-  if (!rank || !total) return { container: 'bg-slate-100 dark:bg-slate-800', badge: 'bg-slate-300 dark:bg-slate-600' }
-  if (rank === 1) return { container: 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/20', badge: 'bg-amber-400 text-amber-900' }
-  if (rank === 2) return { container: 'bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700', badge: 'bg-slate-300 text-slate-900 dark:bg-slate-400' }
-  if (rank === 3) return { container: 'bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/20', badge: 'bg-orange-400 text-orange-900' }
-  if (rank === total) return { container: 'bg-rose-50 dark:bg-rose-900/20', badge: 'bg-rose-500 text-white' }
-  if (rank === total - 1) return { container: 'bg-rose-50/70 dark:bg-rose-900/10', badge: 'bg-rose-400 text-white' }
-  return { container: 'bg-sky-50 dark:bg-sky-900/20', badge: 'bg-sky-400 text-sky-900' }
+  if (!rank || !total) return { container:'bg-slate-100 dark:bg-slate-800', badge:'bg-slate-300 dark:bg-slate-600' }
+  if (rank === 1) return { container:'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/20', badge:'bg-amber-400 text-amber-900' }
+  if (rank === 2) return { container:'bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700', badge:'bg-slate-300 text-slate-900 dark:bg-slate-400' }
+  if (rank === 3) return { container:'bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/20', badge:'bg-orange-400 text-orange-900' }
+  if (rank === total) return { container:'bg-rose-50 dark:bg-rose-900/20', badge:'bg-rose-500 text-white' }
+  if (rank === total - 1) return { container:'bg-rose-50/70 dark:bg-rose-900/10', badge:'bg-rose-400 text-white' }
+  return { container:'bg-sky-50 dark:bg-sky-900/20', badge:'bg-sky-400 text-sky-900' }
 }
 function rankPhrase(rank, total) {
   if (!rank || !total) return 'Posición no disponible'
@@ -119,14 +112,6 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  useEffect(() => {
-    if (detailParticipant) {
-      const prev = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
-      return () => { document.body.style.overflow = prev }
-    }
-  }, [detailParticipant])
-
   // Cargar datos
   async function load() {
     setLoading(true)
@@ -135,10 +120,12 @@ export default function App() {
         .from('participants')
         .select('id,name,team_name,photo_url,photo_real_url,coach_photo_url,ref_coach')
         .order('name')
+
       const { data: pens } = await supabase
         .from('penalties')
         .select('id,participant_id,amount,reason,date')
         .order('date', { ascending: false })
+
       // Carrusel (solo si está activado)
       if (SHOW_CAROUSEL) {
         const { data: photos } = await supabase
@@ -150,6 +137,7 @@ export default function App() {
       } else {
         setCarousel([])
       }
+
       const { data: rank } = await supabase
         .from('v_ranking_current')
         .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
@@ -247,7 +235,7 @@ export default function App() {
   // Carrusel
   const carouselPhotos = useMemo(() => carousel, [carousel])
 
-  // Toast + confeti
+  // Toast + confetti
   function showToast(message) {
     const el = document.createElement('div')
     el.textContent = message
@@ -260,11 +248,20 @@ export default function App() {
   const [detailParticipant, setDetailParticipant] = useState(null)
   const openDetail = (p) => { setLightboxUrl(null); setDetailParticipant(p) }
   const closeDetail = () => setDetailParticipant(null)
+
+  // Cierre con ESC y bloqueo del scroll del body
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && closeDetail()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+  useEffect(() => {
+    if (detailParticipant) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [detailParticipant])
 
   // ==============================
   //  RENDER
@@ -290,10 +287,10 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <KonamiEasterEgg />
 
-        {/* Carrusel */}
+        {/* Carrusel (opcional) */}
         {SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
           <section><PhotoCarousel photos={carouselPhotos} /></section>
-        )}Gracias.
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
@@ -489,7 +486,7 @@ export default function App() {
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: idx * 0.04 }}
-                          onClick={() => { /* console.log('openDetail', p.name) */ openDetail(p) }}
+                          onClick={() => { openDetail(p) }}
                           className="cursor-pointer"
                           role="button"
                           tabIndex={0}
@@ -626,7 +623,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Modal detalle participante */}
+            {/* ===== MODAL DETALLE PARTICIPANTE ===== */}
             {detailParticipant && (
               <div
                 className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center sm:px-4"
@@ -635,14 +632,14 @@ export default function App() {
                 aria-modal="true"
                 aria-labelledby="participant-modal-title"
               >
-                {/* Contenedor: fullscreen en móvil, centrado en desktop */}
+                {/* Contenedor: fullscreen móvil, centrado en desktop */}
                 <div
-                  className="
-        w-full h-[100dvh] sm:h-auto sm:max-h-[85vh]
-        sm:max-w-3xl bg-white dark:bg-slate-900
-        rounded-none sm:rounded-2xl shadow-2xl ring-1 ring-slate-200/60 dark:ring-slate-800/60
-        overflow-hidden flex flex-col
-      "
+                  className={[
+                    'w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] sm:max-w-3xl',
+                    'bg-white dark:bg-slate-900',
+                    'rounded-none sm:rounded-2xl shadow-2xl ring-1 ring-slate-200/60 dark:ring-slate-800/60',
+                    'overflow-hidden flex flex-col'
+                  ].join(' ')}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Cabecera fija */}
@@ -673,10 +670,10 @@ export default function App() {
                       const total = ranking.length
                       const styles = rankStyle(pos, total)
                       return (
-                        <div className={["mb-5 rounded-xl px-4 py-3 border", styles.container, "border-slate-200/70 dark:border-slate-800/60"].join(' ')}>
+                        <div className={['mb-5 rounded-xl px-4 py-3 border', styles.container, 'border-slate-200/70 dark:border-slate-800/60'].join(' ')}>
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                              <span className={["inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold", styles.badge].join(' ')}>
+                              <span className={['inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold', styles.badge].join(' ')}>
                                 #{pos || '—'}
                               </span>
                               <span className="text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100">
@@ -685,7 +682,7 @@ export default function App() {
                             </div>
                             {pos && pos <= 3 && (
                               <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-300">
-                                {pos === 1 ? "Premio del bote: 50%" : pos === 2 ? "Premio del bote: 30%" : "Premio del bote: 20%"}
+                                {pos === 1 ? 'Premio del bote: 50%' : pos === 2 ? 'Premio del bote: 30%' : 'Premio del bote: 20%'}
                               </div>
                             )}
                             {pos && (pos === total || pos === total - 1) && (
