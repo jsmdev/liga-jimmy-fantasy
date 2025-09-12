@@ -32,6 +32,7 @@ import Select from '@/components/ui/Select.jsx'
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
+const SHOW_CAROUSEL = false
 
 // ==============================
 //  HELPERS
@@ -126,18 +127,21 @@ export default function App() {
         .from('participants')
         .select('id,name,team_name,photo_url,photo_real_url,coach_photo_url,ref_coach')
         .order('name')
-
       const { data: pens } = await supabase
         .from('penalties')
         .select('id,participant_id,amount,reason,date')
         .order('date', { ascending: false })
-
-      const { data: photos } = await supabase
-        .from('carousel_photos')
-        .select('url, alt, caption, position, is_active')
-        .eq('is_active', true)
-        .order('position', { ascending: true })
-
+      // Carrusel (solo si está activado)
+      if (SHOW_CAROUSEL) {
+        const { data: photos } = await supabase
+          .from('carousel_photos')
+          .select('url, alt, caption, position, is_active')
+          .eq('is_active', true)
+          .order('position', { ascending: true })
+        setCarousel((photos || []).map(p => ({ url: p.url, alt: p.alt || '', caption: p.caption || '' })))
+      } else {
+        setCarousel([])
+      }
       const { data: rank } = await supabase
         .from('v_ranking_current')
         .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
@@ -145,7 +149,6 @@ export default function App() {
 
       setParticipants(parts || [])
       setPenalties(pens || [])
-      setCarousel((photos || []).map(p => ({ url: p.url, alt: p.alt || '', caption: p.caption || '' })))
       setRankingRows(rank || [])
     } catch (e) {
       console.error('load() error', e)
@@ -280,9 +283,9 @@ export default function App() {
         <KonamiEasterEgg />
 
         {/* Carrusel */}
-        {Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
+        {SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
           <section><PhotoCarousel photos={carouselPhotos} /></section>
-        )}
+        )}Gracias. 
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
@@ -745,7 +748,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            )}Gracias. 
+            )}
           </>
         )}
       </main>
