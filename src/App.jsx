@@ -21,7 +21,7 @@ import Select from '@/components/ui/Select.jsx'
 const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 // Mostrar/ocultar carrusel globalmente
-const SHOW_CAROUSEL = false
+const SHOW_CAROUSEL = true
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
