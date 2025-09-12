@@ -119,6 +119,14 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  useEffect(() => {
+    if (detailParticipant) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [detailParticipant])
+
   // Cargar datos
   async function load() {
     setLoading(true)
@@ -285,7 +293,7 @@ export default function App() {
         {/* Carrusel */}
         {SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
           <section><PhotoCarousel photos={carouselPhotos} /></section>
-        )}Gracias. 
+        )}Gracias.
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
@@ -621,20 +629,26 @@ export default function App() {
             {/* Modal detalle participante */}
             {detailParticipant && (
               <div
-                className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center px-4"
+                className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center sm:px-4"
                 onClick={closeDetail}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="participant-modal-title"
               >
+                {/* Contenedor: fullscreen en móvil, centrado en desktop */}
                 <div
-                  className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-200/60 dark:ring-slate-800/60"
+                  className="
+        w-full h-[100dvh] sm:h-auto sm:max-h-[85vh]
+        sm:max-w-3xl bg-white dark:bg-slate-900
+        rounded-none sm:rounded-2xl shadow-2xl ring-1 ring-slate-200/60 dark:ring-slate-800/60
+        overflow-hidden flex flex-col
+      "
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Cabecera */}
-                  <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-4">
+                  {/* Cabecera fija */}
+                  <div className="px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-4 flex-none">
                     <div>
-                      <h3 id="participant-modal-title" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                      <h3 id="participant-modal-title" className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
                         {detailParticipant.name}
                       </h3>
                       <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -650,16 +664,16 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Contenido */}
-                  <div className="p-6">
-                    {/* Banner de posición (debajo cabecera, encima del grid) */}
+                  {/* Contenido scrollable */}
+                  <div className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 py-5">
+                    {/* Banner de posición */}
                     {(() => {
                       const rk = ranking.find(r => r.id === detailParticipant.id)
                       const pos = rk?.rank
                       const total = ranking.length
                       const styles = rankStyle(pos, total)
                       return (
-                        <div className={["mb-6 rounded-xl px-4 py-3 border", styles.container, "border-slate-200/70 dark:border-slate-800/60"].join(' ')}>
+                        <div className={["mb-5 rounded-xl px-4 py-3 border", styles.container, "border-slate-200/70 dark:border-slate-800/60"].join(' ')}>
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <span className={["inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold", styles.badge].join(' ')}>
@@ -684,56 +698,35 @@ export default function App() {
                       )
                     })()}
 
-                    {/* Grid de fotos e info */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Grid de fotos (responsive) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                       {/* Foto del equipo */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto del equipo</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                           {detailParticipant.photo_url ? (
-                            <img
-                              src={detailParticipant.photo_url}
-                              alt={`Equipo de ${detailParticipant.name}`}
-                              className="object-cover w-full h-full"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="text-slate-400 text-sm">Sin imagen</span>
-                          )}
+                            <img src={detailParticipant.photo_url} alt={`Equipo de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
+                          ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
                         </div>
                       </div>
 
                       {/* Foto real */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto real</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                           {detailParticipant.photo_real_url ? (
-                            <img
-                              src={detailParticipant.photo_real_url}
-                              alt={`Foto real de ${detailParticipant.name}`}
-                              className="object-cover w-full h-full"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="text-slate-400 text-sm">Sin imagen</span>
-                          )}
+                            <img src={detailParticipant.photo_real_url} alt={`Foto real de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
+                          ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
                         </div>
                       </div>
 
                       {/* Entrenador de referencia */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Entrenador de referencia</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                           {detailParticipant.coach_photo_url ? (
-                            <img
-                              src={detailParticipant.coach_photo_url}
-                              alt={`Entrenador de referencia de ${detailParticipant.name}`}
-                              className="object-cover w-full h-full"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="text-slate-400 text-sm">Sin imagen</span>
-                          )}
+                            <img src={detailParticipant.coach_photo_url} alt={`Entrenador de referencia de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
+                          ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
                         </div>
                         <div className="mt-3 text-sm">
                           <span className="text-slate-500 dark:text-slate-400 mr-1">Referente:</span>
@@ -743,9 +736,8 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Sin botón “Entendido”; cierre con ESC o clic fuera */}
                   </div>
+                  {/* fin contenido scrollable */}
                 </div>
               </div>
             )}
