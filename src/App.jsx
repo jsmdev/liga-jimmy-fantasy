@@ -301,7 +301,7 @@ export default function App() {
             {/* Ranking */}
             <section>
               <SectionHeader
-                title="Ranking actual 🏆"
+                title="Ranking actual"
                 subtitle="Reparto del bote: 50% / 30% / 20%. Los dos últimos… escarnio público 😉"
                 collapsed={collapsedRanking}
                 onToggle={() => setCollapsedRanking(v => !v)}
