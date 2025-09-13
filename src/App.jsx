@@ -3,7 +3,11 @@
 // ==============================
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { ChevronDown, Loader2, ArrowUpDown, Trophy, Medal, ThumbsDown, Crown, Users } from 'lucide-react'
+import {
+  ChevronDown, Loader2, ArrowUpDown,
+  Trophy, Medal, ThumbsDown, Crown, Users,
+  BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import ThemeToggle from '@/components/ThemeToggle.jsx'
@@ -103,6 +107,8 @@ export default function App() {
   const [collapsedRanking, setCollapsedRanking] = useState(false)
   const [collapsedSummary, setCollapsedSummary] = useState(false)
   const [collapsedHistory, setCollapsedHistory] = useState(false)
+  const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
+  const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
 
   // Móvil (animación campeón)
   const [isMobile, setIsMobile] = useState(false)
@@ -111,6 +117,9 @@ export default function App() {
     onResize(); window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // Día(s) más travieso(s) (desde vista SQL)
+  const [naughtyDays, setNaughtyDays] = useState([])
 
   // Cargar datos
   async function load() {
@@ -143,12 +152,19 @@ export default function App() {
         .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
         .order('rank', { ascending: true })
 
+      // Día(s) más travieso(s)
+      const { data: naughty } = await supabase
+        .from('v_stats_naughty_day')
+        .select('day, negative_sum, negatives_count')
+        .order('day', { ascending: false })
+
       setParticipants(parts || [])
       setPenalties(pens || [])
       setRankingRows(rank || [])
+      setNaughtyDays(naughty || [])
     } catch (e) {
       console.error('load() error', e)
-      setParticipants([]); setPenalties([]); setCarousel([]); setRankingRows([])
+      setParticipants([]); setPenalties([]); setCarousel([]); setRankingRows([]); setNaughtyDays([])
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
@@ -264,6 +280,105 @@ export default function App() {
   }, [detailParticipant])
 
   // ==============================
+  //  Estadísticas (frontend): empates y listas completas + días con más sanciones (nº)
+  // ==============================
+  const stats = useMemo(() => {
+    const base = {
+      mostSanctions: { names: [], count: 0 },
+      leastSanctions: { names: [], count: 0 },
+      worstPenalties: [],   // [{pen, participant}]
+      mostBonuses: { names: [], count: 0 },
+      biggestBonuses: [],   // [{pen, participant}]
+      naughtyCountDays: []  // [{ day: 'YYYY-MM-DD', negatives_count: N, negative_sum: -X }]
+    }
+    if (!participants?.length) return base
+
+    // Conteos y extremos
+    const negCount = Object.fromEntries(participants.map(p => [p.id, 0]))
+    const posCount = Object.fromEntries(participants.map(p => [p.id, 0]))
+    let minNegAmount = null
+    let maxPosAmount = null
+
+    // Para el cálculo por día (máximo nº de sanciones)
+    const perDay = new Map() // día -> { count, sum }
+
+    for (const pen of penalties || []) {
+      const amount = Number(pen.amount) || 0
+      if (amount < 0) {
+        // Conteos por participante
+        negCount[pen.participant_id] = (negCount[pen.participant_id] || 0) + 1
+        if (minNegAmount === null || amount < minNegAmount) minNegAmount = amount
+
+        // Agregado por día (solo sanciones negativas)
+        if (pen.date) {
+          const day = new Date(pen.date).toISOString().slice(0, 10) // YYYY-MM-DD
+          const prev = perDay.get(day) || { count: 0, sum: 0 }
+          prev.count += 1
+          prev.sum += amount
+          perDay.set(day, prev)
+        }
+      } else if (amount > 0) {
+        posCount[pen.participant_id] = (posCount[pen.participant_id] || 0) + 1
+        if (maxPosAmount === null || amount > maxPosAmount) maxPosAmount = amount
+      }
+    }
+
+    const negEntries = Object.entries(negCount)
+    const maxNeg = Math.max(0, ...negEntries.map(([, c]) => c))
+    const minNeg = Math.min(...negEntries.map(([, c]) => c))
+
+    const mostNames = negEntries
+      .filter(([, c]) => c === maxNeg)
+      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
+
+    const leastNames = negEntries
+      .filter(([, c]) => c === minNeg)
+      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
+
+    const maxPos = Math.max(0, ...Object.values(posCount))
+    const mostBonusNames = Object.entries(posCount)
+      .filter(([, c]) => c === maxPos && c > 0)
+      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
+
+    // Empates de peor sanción (mismo importe mínimo)
+    const worstPenalties = (minNegAmount === null)
+      ? []
+      : (penalties || [])
+        .filter(p => Number(p.amount) === minNegAmount)
+        .map(p => ({ pen: p, participant: participants.find(pp => pp.id === p.participant_id) }))
+
+    // Empates de mayor bonificación (mismo importe máximo)
+    const biggestBonuses = (maxPosAmount === null)
+      ? []
+      : (penalties || [])
+        .filter(p => Number(p.amount) === maxPosAmount)
+        .map(p => ({ pen: p, participant: participants.find(pp => pp.id === p.participant_id) }))
+
+    // Días con MÁS sanciones (por número) — empates incluidos
+    let naughtyCountDays = []
+    if (perDay.size > 0) {
+      let maxCount = 0
+      for (const { count } of perDay.values()) {
+        if (count > maxCount) maxCount = count
+      }
+      for (const [day, { count, sum }] of perDay.entries()) {
+        if (count === maxCount) naughtyCountDays.push({ day, negatives_count: count, negative_sum: sum })
+      }
+      // Orden descendente por fecha
+      naughtyCountDays.sort((a, b) => (a.day < b.day ? 1 : -1))
+    }
+
+    return {
+      mostSanctions: { names: mostNames, count: maxNeg },
+      leastSanctions: { names: leastNames, count: minNeg },
+      worstPenalties,
+      mostBonuses: { names: mostBonusNames, count: maxPos },
+      biggestBonuses,
+      naughtyCountDays
+    }
+  }, [participants, penalties])
+
+  // ==============================
   //  RENDER
   // ==============================
   return (
@@ -276,10 +391,10 @@ export default function App() {
             <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
             <div className="mt-3 gradient-bar" />
           </div>
-          <div className="flex items-center gap-3">
-            <ConfettiButton>Modo fiesta</ConfettiButton>
-            <ThemeToggle />
-          </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-4 flex items-center justify-end gap-3">
+          <ConfettiButton>Modo fiesta</ConfettiButton>
+          <ThemeToggle />
         </div>
       </header>
 
@@ -287,10 +402,29 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <KonamiEasterEgg />
 
-        {/* Carrusel (opcional) */}
-        {SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
-          <section><PhotoCarousel photos={carouselPhotos} /></section>
-        )}
+        {/* Galería de la Liga (Carrusel opcional) */}
+        <section>
+          <SectionHeader
+            title="Galería de la Liga"
+            subtitle="Momentazos y cromos de la leyenda"
+            collapsed={collapsedGallery}
+            onToggle={() => setCollapsedGallery(v => !v)}
+          />
+          <AnimatePresence initial={false}>
+            {!collapsedGallery && SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
+              <motion.div
+                key="gallery-body"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="mt-4"
+              >
+                <PhotoCarousel photos={carouselPhotos} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
@@ -298,7 +432,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* Ranking */}
+            {/* Ranking actual */}
             <section>
               <SectionHeader
                 title="Ranking actual"
@@ -316,36 +450,31 @@ export default function App() {
                     transition={{ duration: 0.18 }}
                     className="mt-4 space-y-6"
                   >
-                    {/* Podio */}
+                    {/* Podio (con marco) */}
                     <div className="glass border border-amber-300/70 dark:border-amber-600/70 rounded-2xl p-4">
-                      <div className="text-sm font-semibold mb-2 text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                        <Crown className="w-4 h-4" /> El podio
+                      <div className="text-sm font-semibold mb-3 text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                        <Crown className="w-6 h-6" /> El podio
                       </div>
 
-                      {/* 1 columna en móvil, 3 columnas desde md; centrado y con gap */}
+                      {/* 1 col móvil, 3 col ≥ md */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-end md:justify-items-center">
-                        {/* Plata (col 1 en >= md) */}
-                        <div className="text-center md:col-start-1 w-full order-2 md:order-none">
+                        {/* Plata */}
+                        <div className="text-center md:col-start-1 w-full order-2 md:order-none md:pt-3">
                           {podium[1] && (
                             <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                              <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
-                                <Medal className="w-7 h-7" />
+                              <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
+                                <Medal className="w-8 h-8" />
                               </div>
                               <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>30%</strong></div>
                               <div className="mt-2 font-semibold">{podium[1].name}</div>
                               <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
-                              <div className="mt-2 text-sm">
-                                <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
-                                <span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span>
-                              </div>
+                              <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span></div>
+                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span></div>
                             </div>
                           )}
                         </div>
 
-                        {/* Oro (col 2 en >= md) */}
+                        {/* Oro */}
                         <div className="text-center md:col-start-2 w-full order-1 md:order-none">
                           {podium[0] && (
                             <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
@@ -356,41 +485,31 @@ export default function App() {
                                 transition={{ type: 'spring', stiffness: 220, damping: 18, mass: 0.6 }}
                                 whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
                               >
-                                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
-                                  <Trophy className="w-8 h-8" />
+                                <div className="mx-auto w-18 h-18 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
+                                  <Trophy className="w-10 h-10" />
                                 </div>
                                 <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>50%</strong></div>
                                 <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
-                                <div className="mt-2">
-                                  <span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span>
-                                  <span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span>
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span>
-                                </div>
+                                <div className="mt-2"><span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span><span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span></div>
+                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span></div>
                               </motion.div>
                             </button>
                           )}
                         </div>
 
-                        {/* Bronce (col 3 en >= md) */}
-                        <div className="text-center md:col-start-3 w-full order-3 md:order-none">
+                        {/* Bronce */}
+                        <div className="text-center md:col-start-3 w-full order-3 md:order-none md:pt-3">
                           {podium[2] && (
                             <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                              <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
-                                <Medal className="w-7 h-7" />
+                              <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
+                                <Medal className="w-8 h-8" />
                               </div>
                               <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>20%</strong></div>
                               <div className="mt-2 font-semibold">{podium[2].name}</div>
                               <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
-                              <div className="mt-2 text-sm">
-                                <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
-                                <span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span>
-                              </div>
+                              <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span></div>
+                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span></div>
                             </div>
                           )}
                         </div>
@@ -401,7 +520,7 @@ export default function App() {
                     {middlePack.length > 0 && (
                       <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                          <Users className="w-4 h-4" /> El pelotón
+                          <Users className="w-6 h-6" /> El pelotón
                         </div>
                         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                           {middlePack.map((p) => (
@@ -431,7 +550,7 @@ export default function App() {
                     {tailTwo.length > 0 && (
                       <div className="glass border border-rose-300/70 dark:border-rose-700/70 rounded-2xl p-4">
                         <div className="text-sm font-semibold mb-2 text-rose-700 dark:text-rose-300 flex items-center gap-2">
-                          <ThumbsDown className="w-4 h-4" /> Escarnio público (los dos últimos)
+                          <ThumbsDown className="w-6 h-6" /> Escarnio público (los dos últimos)
                         </div>
                         <ul className="divide-y divide-rose-200/60 dark:divide-rose-800/60">
                           {tailTwo.map(p => (
@@ -461,10 +580,10 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* Resumen (cards → modal) */}
+            {/* Resumen por participante (cards → modal) */}
             <section>
               <SectionHeader
-                title="Resumen de bonificaciones y penalizaciones por participante"
+                title="Resumen por participante"
                 collapsed={collapsedSummary}
                 onToggle={() => setCollapsedSummary(v => !v)}
               />
@@ -498,7 +617,7 @@ export default function App() {
                       </div>
                     </motion.div>
 
-                    {/* Grid de tarjetas (el onClick va en el contenedor motion.div) */}
+                    {/* Grid de tarjetas */}
                     <motion.div
                       key="summary-grid"
                       initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}
@@ -561,7 +680,7 @@ export default function App() {
             {/* Historial */}
             <section className="mt-10">
               <SectionHeader
-                title="Historial de bonificaciones y penalizaciones"
+                title="Historial"
                 subtitle="Consulta detallada ordenable y filtrable"
                 collapsed={collapsedHistory}
                 onToggle={() => setCollapsedHistory(v => !v)}
@@ -572,11 +691,26 @@ export default function App() {
                     <div className="mt-4 pb-4 grid gap-3 lg:grid-cols-4">
                       <div className="lg:col-span-2">
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Participante</label>
-                        <Select value={filterParticipantId} onChange={v => setFilterParticipantId(v)} options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]} className="w-full" />
+                        <Select
+                          value={filterParticipantId}
+                          onChange={v => setFilterParticipantId(v)}
+                          options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]}
+                          className="w-full"
+                        />
                       </div>
                       <div>
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Ordenar por</label>
-                        <Select value={sortBy} onChange={setSortBy} options={[{ value: 'date', label: 'Fecha' }, { value: 'name', label: 'Nombre participante' }, { value: 'team', label: 'Nombre equipo' }, { value: 'amount', label: 'Penalización' }]} className="w-full" />
+                        <Select
+                          value={sortBy}
+                          onChange={setSortBy}
+                          options={[
+                            { value: 'date', label: 'Fecha' },
+                            { value: 'name', label: 'Nombre participante' },
+                            { value: 'team', label: 'Nombre equipo' },
+                            { value: 'amount', label: 'Penalización' }
+                          ]}
+                          className="w-full"
+                        />
                       </div>
                       <div>
                         <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Dirección</label>
@@ -584,7 +718,10 @@ export default function App() {
                       </div>
                       {(filterParticipantId !== 'all' || sortBy !== 'date' || sortDir !== 'desc') && (
                         <div className="lg:col-span-4 flex justify-end">
-                          <button onClick={() => { setFilterParticipantId('all'); setSortBy('date'); setSortDir('desc') }} className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition">
+                          <button
+                            onClick={() => { setFilterParticipantId('all'); setSortBy('date'); setSortDir('desc') }}
+                            className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition"
+                          >
                             Limpiar filtros
                           </button>
                         </div>
@@ -632,6 +769,178 @@ export default function App() {
                                 ))}
                             </tbody>
                           </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+
+            {/* === ESTADÍSTICAS (AL FINAL) === */}
+            <section>
+              <SectionHeader
+                title="Estadísticas"
+                subtitle="Datos curiosos, récords y villanos de la jornada 😈"
+                collapsed={collapsedStats}
+                onToggle={() => setCollapsedStats(v => !v)}
+              />
+              <AnimatePresence initial={false}>
+                {!collapsedStats && (
+                  <motion.div
+                    key="stats-body"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className="mt-4"
+                  >
+                    <Card className="glass card-float border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <CardHeader className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="flex items-center gap-3">
+                            <BarChart2 className="w-7 h-7" /> Panel de estadísticas
+                          </CardTitle>
+                          <CardDescription>Quién rompe el fair play y quién va con flores 🌼</CardDescription>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Mayor número de penalizaciones */}
+                          <div className="rounded-2xl p-5 border bg-rose-50/60 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/70">
+                            <div className="text-base font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-3">
+                              <AlertTriangle className="w-7 h-7" /> Mayor nº de sanciones
+                            </div>
+                            <div className="mt-2 text-xl font-extrabold text-rose-700 dark:text-rose-300">
+                              {stats.mostSanctions.count} {stats.mostSanctions.count === 1 ? 'sanción' : 'sanciones'}
+                            </div>
+                            <div className="mt-1 text-sm text-rose-800 dark:text-rose-200">
+                              {stats.mostSanctions.names.length ? stats.mostSanctions.names.join(', ') : '—'}
+                            </div>
+                            <div className="mt-2 text-xs text-rose-700/80 dark:text-rose-300/80">
+                              ¡Menos VAR y más fair play! 😅
+                            </div>
+                          </div>
+
+                          {/* Menor número de penalizaciones */}
+                          <div className="rounded-2xl p-5 border bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/70">
+                            <div className="text-base font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-3">
+                              <ThumbsUp className="w-7 h-7" /> Menor nº de sanciones
+                            </div>
+                            <div className="mt-2 text-xl font-extrabold text-emerald-700 dark:text-emerald-300">
+                              {stats.leastSanctions.count} {stats.leastSanctions.count === 1 ? 'sanción' : 'sanciones'}
+                            </div>
+                            <div className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+                              {stats.leastSanctions.names.length ? stats.leastSanctions.names.join(', ') : '—'}
+                            </div>
+                            <div className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                              Gente de bien de verdad ✨
+                            </div>
+                          </div>
+
+                          {/* Peor(es) sanción(es) (empates incluidos) */}
+                          <div className="rounded-2xl p-5 border bg-amber-50/60 dark:bg-amber-900/20 border-amber-200/70 dark:border-amber-800/70">
+                            <div className="text-base font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-3">
+                              <AlertTriangle className="w-7 h-7" /> Penalización más alta
+                            </div>
+                            {stats.worstPenalties.length > 0 ? (
+                              <ul className="mt-2 space-y-2">
+                                {stats.worstPenalties.map(({ pen, participant }) => (
+                                  <li key={pen.id} className="text-sm">
+                                    <div className="font-bold text-amber-700 dark:text-amber-300">
+                                      {participant?.name || '—'} · {fmtSigned(pen.amount)}
+                                    </div>
+                                    <div className="text-amber-800 dark:text-amber-200">
+                                      {fmtDate(pen.date)} — {pen.reason}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="mt-2 text-sm text-amber-800 dark:text-amber-200">Sin sanciones registradas</div>
+                            )}
+                          </div>
+
+                          {/* Más bonificaciones (conteo, empates) */}
+                          <div className="rounded-2xl p-5 border bg-sky-50/60 dark:bg-sky-900/20 border-sky-200/70 dark:border-sky-800/70">
+                            <div className="text-base font-semibold text-sky-700 dark:text-sky-300 flex items-center gap-3">
+                              <ThumbsUp className="w-7 h-7" /> Más bonificaciones (nº)
+                            </div>
+                            {stats.mostBonuses.count > 0 ? (
+                              <>
+                                <div className="mt-2 text-xl font-extrabold text-sky-700 dark:text-sky-300">
+                                  {stats.mostBonuses.count} {stats.mostBonuses.count === 1 ? 'bonificación' : 'bonificaciones'}
+                                </div>
+                                <div className="mt-1 text-sm text-sky-800 dark:text-sky-200">
+                                  {stats.mostBonuses.names.join(', ')}
+                                </div>
+                                <div className="mt-2 text-xs text-sky-700/80 dark:text-sky-300/80">
+                                  ¡Fair play de manual! 😇
+                                </div>
+                              </>
+                            ) : (
+                              <div className="mt-2 text-sm text-sky-800 dark:text-sky-200">Sin bonificaciones por ahora</div>
+                            )}
+                          </div>
+
+                          {/* Mayor(es) bonificación(es) (importe, empates) */}
+                          <div className="rounded-2xl p-5 border bg-violet-50/60 dark:bg-violet-900/20 border-violet-200/70 dark:border-violet-800/70">
+                            <div className="text-base font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-3">
+                              <ThumbsUp className="w-7 h-7" /> Bonificación más grande
+                            </div>
+                            {stats.biggestBonuses.length > 0 ? (
+                              <ul className="mt-2 space-y-2">
+                                {stats.biggestBonuses.map(({ pen, participant }) => (
+                                  <li key={pen.id} className="text-sm">
+                                    <div className="font-bold text-violet-700 dark:text-violet-300">
+                                      {participant?.name || '—'} · {fmtSigned(pen.amount)}
+                                    </div>
+                                    <div className="text-violet-800 dark:text-violet-200">
+                                      {fmtDate(pen.date)} — {pen.reason}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="mt-2 text-sm text-violet-800 dark:text-violet-200">Sin bonificaciones registradas</div>
+                            )}
+                          </div>
+
+                          {/* Día(s) con MÁS sanciones por número (frontend) */}
+                          <div className="rounded-2xl p-5 border bg-rose-50/60 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/70">
+                            <div className="text-base font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-3">
+                              <Calendar className="w-7 h-7" /> Días con más sanciones
+                            </div>
+
+                            {Array.isArray(stats.naughtyCountDays) && stats.naughtyCountDays.length > 0 ? (
+                              <>
+                                {stats.naughtyCountDays.map((d, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={idx > 0 ? 'mt-3 pt-3 border-t border-rose-200/60 dark:border-rose-800/60' : 'mt-2'}
+                                  >
+                                    <div className="text-base font-bold text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                                      <Calendar className="w-5 h-5" />
+                                      {new Date(d.day).toLocaleDateString()}
+                                    </div>
+                                    <div className="text-sm text-rose-800 dark:text-rose-200">
+                                      Nº sanciones: <span className="font-semibold">{d.negatives_count}</span>
+                                      {typeof d.negative_sum === 'number' && (
+                                        <> · Suma negativa: <span className="font-semibold">{d.negative_sum}</span></>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">
+                                      Día movidito en los despachos… 📣
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            ) : (
+                              <div className="mt-2 text-sm text-rose-800 dark:text-rose-200">
+                                Aún no hay suficientes sanciones para destacar un día.
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
