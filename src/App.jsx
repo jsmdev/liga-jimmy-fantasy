@@ -301,7 +301,7 @@ export default function App() {
             {/* Ranking */}
             <section>
               <SectionHeader
-                title="Ranking actual de la liga"
+                title="Ranking actual de la Liga Fantasy"
                 subtitle="Reparto del bote: 50% / 30% / 20%. Los dos últimos… escarnio público 😉"
                 collapsed={collapsedRanking}
                 onToggle={() => setCollapsedRanking(v => !v)}
@@ -440,7 +440,7 @@ export default function App() {
             {/* Resumen (cards → modal) */}
             <section>
               <SectionHeader
-                title="Resumen de penalizaciones"
+                title="Resumen de bonificaciones y penalizaciones por participante"
                 collapsed={collapsedSummary}
                 onToggle={() => setCollapsedSummary(v => !v)}
               />
@@ -537,7 +537,7 @@ export default function App() {
             {/* Historial */}
             <section className="mt-10">
               <SectionHeader
-                title="Historial de penalizaciones/bonificaciones"
+                title="Historial de bonificaciones y penalizaciones"
                 subtitle="Consulta detallada ordenable y filtrable"
                 collapsed={collapsedHistory}
                 onToggle={() => setCollapsedHistory(v => !v)}
