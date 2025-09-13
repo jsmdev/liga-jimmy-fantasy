@@ -3,7 +3,7 @@
 // ==============================
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { ChevronDown, Loader2, ArrowUpDown, Trophy, Medal, ThumbsDown } from 'lucide-react'
+import { ChevronDown, Loader2, ArrowUpDown, Trophy, Medal, ThumbsDown, Crown, Users } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import ThemeToggle from '@/components/ThemeToggle.jsx'
@@ -39,13 +39,13 @@ function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
 
 // --- Helpers de estilo y frase según posición en ranking ---
 function rankStyle(rank, total) {
-  if (!rank || !total) return { container:'bg-slate-100 dark:bg-slate-800', badge:'bg-slate-300 dark:bg-slate-600' }
-  if (rank === 1) return { container:'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/20', badge:'bg-amber-400 text-amber-900' }
-  if (rank === 2) return { container:'bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700', badge:'bg-slate-300 text-slate-900 dark:bg-slate-400' }
-  if (rank === 3) return { container:'bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/20', badge:'bg-orange-400 text-orange-900' }
-  if (rank === total) return { container:'bg-rose-50 dark:bg-rose-900/20', badge:'bg-rose-500 text-white' }
-  if (rank === total - 1) return { container:'bg-rose-50/70 dark:bg-rose-900/10', badge:'bg-rose-400 text-white' }
-  return { container:'bg-sky-50 dark:bg-sky-900/20', badge:'bg-sky-400 text-sky-900' }
+  if (!rank || !total) return { container: 'bg-slate-100 dark:bg-slate-800', badge: 'bg-slate-300 dark:bg-slate-600' }
+  if (rank === 1) return { container: 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/20', badge: 'bg-amber-400 text-amber-900' }
+  if (rank === 2) return { container: 'bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700', badge: 'bg-slate-300 text-slate-900 dark:bg-slate-400' }
+  if (rank === 3) return { container: 'bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/20', badge: 'bg-orange-400 text-orange-900' }
+  if (rank === total) return { container: 'bg-rose-50 dark:bg-rose-900/20', badge: 'bg-rose-500 text-white' }
+  if (rank === total - 1) return { container: 'bg-rose-50/70 dark:bg-rose-900/10', badge: 'bg-rose-400 text-white' }
+  return { container: 'bg-sky-50 dark:bg-sky-900/20', badge: 'bg-sky-400 text-sky-900' }
 }
 function rankPhrase(rank, total) {
   if (!rank || !total) return 'Posición no disponible'
@@ -317,68 +317,92 @@ export default function App() {
                     className="mt-4 space-y-6"
                   >
                     {/* Podio */}
-                    <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
-                      {/* Plata */}
-                      <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
-                        {podium[1] && (
-                          <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
-                              <Medal className="w-7 h-7" />
-                            </div>
-                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>30%</strong></div>
-                            <div className="mt-2 font-semibold">{podium[1].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
-                            <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span></div>
-                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span></div>
-                          </div>
-                        )}
+                    <div className="glass border border-amber-300/70 dark:border-amber-600/70 rounded-2xl p-4">
+                      <div className="text-sm font-semibold mb-2 text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                        <Crown className="w-4 h-4" /> El podio
                       </div>
 
-                      {/* Oro */}
-                      <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
-                        {podium[0] && (
-                          <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
-                            <motion.div
-                              className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]"
-                              initial={isMobile ? { scale: 0.94, y: 6, opacity: 0.95 } : false}
-                              animate={isMobile ? { scale: 1, y: 0, opacity: 1 } : {}}
-                              transition={{ type: 'spring', stiffness: 220, damping: 18, mass: 0.6 }}
-                              whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
-                            >
-                              <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
-                                <Trophy className="w-8 h-8" />
+                      {/* 1 columna en móvil, 3 columnas desde md; centrado y con gap */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-end md:justify-items-center">
+                        {/* Plata (col 1 en >= md) */}
+                        <div className="text-center md:col-start-1 w-full order-2 md:order-none">
+                          {podium[1] && (
+                            <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                              <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 dark:from-slate-600 dark:to-slate-400 flex items-center justify-center text-white shadow">
+                                <Medal className="w-7 h-7" />
                               </div>
-                              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>50%</strong></div>
-                              <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
-                              <div className="mt-2"><span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span><span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span></div>
-                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span></div>
-                            </motion.div>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Bronce */}
-                      <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
-                        {podium[2] && (
-                          <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                            <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
-                              <Medal className="w-7 h-7" />
+                              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>30%</strong></div>
+                              <div className="mt-2 font-semibold">{podium[1].name}</div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[1].team_name || 'Equipo'}</div>
+                              <div className="mt-2 text-sm">
+                                <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
+                                <span className={signTextClass(podium[1].score)}>{fmtSigned(podium[1].score)}</span>
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[1].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[1].pen)}>{fmtSigned(podium[1].pen)}</span>
+                              </div>
                             </div>
-                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>20%</strong></div>
-                            <div className="mt-2 font-semibold">{podium[2].name}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
-                            <div className="mt-2 text-sm"><span className="text-slate-700 dark:text-slate-300">Puntos: </span><span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span></div>
-                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span></div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        {/* Oro (col 2 en >= md) */}
+                        <div className="text-center md:col-start-2 w-full order-1 md:order-none">
+                          {podium[0] && (
+                            <button type="button" onClick={celebrateChampion} className="w-full" title="¡Celebrar al líder!">
+                              <motion.div
+                                className="glass border border-amber-300 dark:border-amber-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]"
+                                initial={isMobile ? { scale: 0.94, y: 6, opacity: 0.95 } : false}
+                                animate={isMobile ? { scale: 1, y: 0, opacity: 1 } : {}}
+                                transition={{ type: 'spring', stiffness: 220, damping: 18, mass: 0.6 }}
+                                whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
+                              >
+                                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow">
+                                  <Trophy className="w-8 h-8" />
+                                </div>
+                                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>50%</strong></div>
+                                <div className="mt-2 font-bold text-lg">{podium[0].name}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{podium[0].team_name || 'Equipo'}</div>
+                                <div className="mt-2">
+                                  <span className="text-slate-700 dark:text-slate-300 text-sm">Puntos: </span>
+                                  <span className={signTextClass(podium[0].score)}>{fmtSigned(podium[0].score)}</span>
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[0].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[0].pen)}>{fmtSigned(podium[0].pen)}</span>
+                                </div>
+                              </motion.div>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Bronce (col 3 en >= md) */}
+                        <div className="text-center md:col-start-3 w-full order-3 md:order-none">
+                          {podium[2] && (
+                            <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                              <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-amber-800 to-orange-700 flex items-center justify-center text-white shadow">
+                                <Medal className="w-7 h-7" />
+                              </div>
+                              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">Premio bote: <strong>20%</strong></div>
+                              <div className="mt-2 font-semibold">{podium[2].name}</div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">{podium[2].team_name || 'Equipo'}</div>
+                              <div className="mt-2 text-sm">
+                                <span className="text-slate-700 dark:text-slate-300">Puntos: </span>
+                                <span className={signTextClass(podium[2].score)}>{fmtSigned(podium[2].score)}</span>
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Puntos Fantasy: <span className="font-medium">{fmtSigned(podium[2].ext)}</span> · <span title="Bonificaciones − Sanciones">Ajuste:</span> <span className={signTextClass(podium[2].pen)}>{fmtSigned(podium[2].pen)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     {/* Pelotón */}
                     {middlePack.length > 0 && (
                       <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-                        <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">El pelotón</div>
+                        <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <Users className="w-4 h-4" /> El pelotón
+                        </div>
                         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                           {middlePack.map((p) => (
                             <li key={p.id} className="py-2 flex items-center justify-between">
