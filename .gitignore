@@ -1,0 +1,45 @@
+# Dependencias
+/node_modules/
+.vite/deps/
+dist/
+.build/
+
+# Build output (Vite)
+dist/
+build/
+
+# Vite cache
+.vite
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# macOS específicos
+.DS_Store
+
+# IDEs y editores
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Package lock (si usas solo npm, ya está en repo; si usas otro gestor, ajusta)
+/package-lock.json
+
+# Si usas cobertura o tests
+coverage/
+*.lcov
+
+# Misc
+*.tgz
