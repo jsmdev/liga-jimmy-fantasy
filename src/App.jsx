@@ -18,6 +18,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Badge from '@/components/ui/Badge.jsx'
 import Avatar from '@/components/ui/Avatar.jsx'
 import Select from '@/components/ui/Select.jsx'
+import Rules from '@/Rules.jsx'
 
 // ==============================
 //  CONSTANTES
@@ -109,6 +110,7 @@ export default function App() {
   const [collapsedHistory, setCollapsedHistory] = useState(false)
   const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
   const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
+  const [collapsedRules, setCollapsedRules] = useState(false) // Normativa
 
   // Móvil (animación campeón)
   const [isMobile, setIsMobile] = useState(false)
@@ -791,7 +793,7 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* === ESTADÍSTICAS (AL FINAL) === */}
+            {/* === ESTADÍSTICAS === */}
             <section>
               <SectionHeader
                 title="Estadísticas"
@@ -815,7 +817,7 @@ export default function App() {
                           <CardTitle className="flex items-center gap-3">
                             <BarChart2 className="w-7 h-7" /> Panel de estadísticas
                           </CardTitle>
-                          <CardDescription>Quién rompe el fair play y quién va con flores 🌼</CardDescription>
+                          <CardDescription>Ángeles y demonios del Fantasy 😇😈</CardDescription>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -958,6 +960,31 @@ export default function App() {
                         </div>
                       </CardContent>
                     </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+
+            {/* Normativa */}
+            <section>
+              <SectionHeader
+                title="Normativa"
+                subtitle="Reglamento oficial de la competición"
+                collapsed={collapsedRules}
+                onToggle={() => setCollapsedRules(v => !v)}
+              />
+              <AnimatePresence initial={false}>
+                {!collapsedRules && (
+                  <motion.div
+                    key="rules-body"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className="mt-4"
+                  >
+                    {/* Pasa aquí la URL pública del PDF si quieres mostrar el botón de descarga */}
+                    <Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL /* o undefined */} />
                   </motion.div>
                 )}
               </AnimatePresence>
