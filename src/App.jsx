@@ -899,7 +899,7 @@ export default function App() {
                     className="mt-4 space-y-6"
                   >
                     {/* ====== LADO OSCURO (Sanciones) ====== */}
-                    <div className="glass rounded-2xl border border-rose-200/30 dark:border-rose-800/30 bg-rose-50/40 dark:bg-rose-900/10 shadow-sm">
+                    <div className="glass rounded-2xl border border-rose-300/70 dark:border-rose-700/70 bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 shadow-sm">
                       {/* Cabecera del grupo */}
                       <div className="px-4 py-3 border-b border-rose-200/60 dark:border-rose-800/60 flex items-center gap-2">
                         <Skull className="w-5 h-5 text-rose-600 dark:text-rose-400" />
@@ -975,7 +975,7 @@ export default function App() {
                         {/* Tarjetas negativas: grid 3 */}
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {/* Mayor nº de sanciones */}
-                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                          <div className="glass rounded-2xl p-4 border border-rose-200/70 dark:border-rose-700/70">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                               <Gavel className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                               Mayor nº de sanciones
@@ -984,7 +984,7 @@ export default function App() {
                           </div>
 
                           {/* Sanciones más altas (importe) */}
-                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                          <div className="glass rounded-2xl p-4 border border-rose-200/70 dark:border-rose-700/70">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                               <Skull className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                               Sanciones más altas
@@ -993,7 +993,7 @@ export default function App() {
                           </div>
 
                           {/* Días con más sanciones (nº) */}
-                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                          <div className="glass rounded-2xl p-4 border border-rose-200/70 dark:border-rose-700/70">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                               <CalendarX className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                               Días con más sanciones
@@ -1005,8 +1005,7 @@ export default function App() {
                     </div>
 
                     {/* ====== LADO LUMINOSO (Bonificaciones y fair play) ====== */}
-                    <div className="glass rounded-2xl border border-emerald-200/30 dark:border-emerald-800/30 bg-emerald-50/40 dark:bg-emerald-900/10 shadow-sm">
-                      {/* Cabecera del grupo */}
+                    <div className="glass rounded-2xl border border-emerald-300/70 dark:border-emerald-700/70 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 shadow-sm">                      {/* Cabecera del grupo */}
                       <div className="px-4 py-3 border-b border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-2">
                         <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                         <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">El lado luminoso (bonificaciones)</h3>
