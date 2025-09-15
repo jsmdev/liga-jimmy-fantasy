@@ -536,7 +536,12 @@ export default function App() {
                 transition={{ duration: 0.18 }}
                 className="mt-4"
               >
-                <PhotoCarousel photos={carouselPhotos} />
+                <div
+                  className="chrome-paint-fix overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
+                  style={{ minHeight: 220 }}
+                >
+                  <PhotoCarousel photos={carouselPhotos} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
