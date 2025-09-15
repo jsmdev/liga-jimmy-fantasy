@@ -86,59 +86,88 @@ function SectionHeader({ title, subtitle, collapsed, onToggle }) {
   )
 }
 
-// MiniPodium: Top 2 con estilo “oro / plata” y lista vertical
-function MiniPodium({ rows, type = 'count' }) {
+// StatDuo: Top 2 con “chip + barras” y medallón de valor.
+// variant: 'infernal' | 'luminous' (default: luminous)
+// type: 'count' | 'amount'
+function StatDuo({ rows, type = 'count', variant = 'luminous' }) {
   const r = Array.isArray(rows) ? rows.slice(0, 2) : []
-  const stripe = (idx) =>
-    idx === 0
-      ? 'from-amber-200/70 to-yellow-300/50 dark:from-amber-900/30 dark:to-yellow-900/20'
-      : 'from-slate-200/70 to-slate-300/50 dark:from-slate-800/40 dark:to-slate-700/30'
-  const medal = (idx) =>
-    idx === 0 ? 'bg-amber-400 text-amber-950' : 'bg-slate-300 text-slate-900 dark:bg-slate-400'
 
-  const ValueBadge = ({ idx, v }) => (
+  const theme = variant === 'infernal'
+    ? {
+      chipGold: 'bg-rose-600 text-white dark:bg-rose-700',
+      chipSilver: 'bg-rose-300 text-rose-900 dark:bg-rose-400',
+      barGold: 'from-rose-200/80 to-rose-300/60 dark:from-rose-900/40 dark:to-rose-800/30',
+      barSilver: 'from-rose-100/80 to-rose-200/60 dark:from-rose-950/40 dark:to-rose-900/30',
+      ringGold: 'ring-rose-300 dark:ring-rose-700',
+      ringSilver: 'ring-rose-200 dark:ring-rose-800',
+    }
+    : {
+      chipGold: 'bg-amber-400 text-amber-950',
+      chipSilver: 'bg-slate-300 text-slate-900 dark:bg-slate-400',
+      barGold: 'from-amber-200/80 to-yellow-300/60 dark:from-amber-900/40 dark:to-yellow-900/30',
+      barSilver: 'from-slate-200/80 to-slate-300/60 dark:from-slate-800/40 dark:to-slate-700/30',
+      ringGold: 'ring-amber-300 dark:ring-amber-700',
+      ringSilver: 'ring-slate-300 dark:ring-slate-600',
+    }
+
+  const Chip = ({ idx }) => (
     <span
       className={[
-        'inline-flex items-center justify-center rounded-lg px-3 py-1.5',
+        'shrink-0 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wide',
+        idx === 0 ? theme.chipGold : theme.chipSilver,
+      ].join(' ')}
+    >
+      {variant === 'infernal' ? (idx === 0 ? '🔥 Infierno' : '😈 Averno') : (idx === 0 ? 'Oro' : 'Plata')}
+    </span>
+  )
+
+  const ValueMedal = ({ idx, v }) => (
+    <span
+      className={[
+        'shrink-0 inline-flex items-center justify-center rounded-xl px-3 py-1.5',
         'text-sm md:text-base font-extrabold shadow-sm ring-1',
         idx === 0
-          ? 'bg-amber-100/90 text-amber-900 ring-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-700'
-          : 'bg-slate-100/90 text-slate-900 ring-slate-300 dark:bg-slate-800/40 dark:text-slate-100 dark:ring-slate-600',
+          ? (variant === 'infernal'
+            ? `bg-rose-50/95 text-rose-900 ${theme.ringGold} dark:bg-rose-900/30 dark:text-rose-200`
+            : `bg-amber-50/95 text-amber-900 ${theme.ringGold} dark:bg-amber-900/30 dark:text-amber-200`)
+          : (variant === 'infernal'
+            ? `bg-rose-50/80 text-rose-900 ${theme.ringSilver} dark:bg-rose-950/30 dark:text-rose-100`
+            : `bg-slate-50/90 text-slate-900 ${theme.ringSilver} dark:bg-slate-800/40 dark:text-slate-100`),
       ].join(' ')}
     >
       {type === 'count' ? `×${v}` : fmtSigned(v)}
     </span>
   )
 
-  return (
-    <div className="mt-3 flex flex-col gap-2 min-h-[6.5rem]">
-      {r.map((row, idx) => (
-        <div
-          key={idx}
-          className={[
-            'flex-1',
-            'rounded-xl px-3 py-2 border bg-gradient-to-r',
-            stripe(idx),
-            'border-slate-200 dark:border-slate-700',
-            'flex items-stretch gap-3',
-          ].join(' ')}
-        >
-          <div className="flex items-center">
-            <span className={['px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wide', medal(idx)].join(' ')}>
-              {idx === 0 ? 'Oro' : 'Plata'}
-            </span>
-          </div>
-          <div className="flex-1 flex items-center justify-between gap-3">
-            <div className="text-sm text-slate-800 dark:text-slate-200 leading-snug w-full">
-              <ul className="space-y-0.5">
-                {(row.labels || []).map((label, i) => (
-                  <li key={i}>{label}</li>
-                ))}
-              </ul>
-            </div>
-            <ValueBadge idx={idx} v={row.value} />
-          </div>
+  const Bar = ({ idx, labels, value }) => (
+    <div
+      className={[
+        'flex-1 rounded-xl px-3 py-2 border bg-gradient-to-r',
+        idx === 0 ? theme.barGold : theme.barSilver,
+        'border-slate-200 dark:border-slate-700',
+        'flex items-stretch gap-3 min-h-[3.75rem]',
+      ].join(' ')}
+    >
+      <div className="flex items-center">
+        <Chip idx={idx} />
+      </div>
+      <div className="flex-1 flex items-center justify-between gap-3">
+        <div className="text-sm text-slate-800 dark:text-slate-200 leading-snug w-full">
+          <ul className="space-y-0.5">
+            {(labels || []).map((label, i) => <li key={i}>{label}</li>)}
+          </ul>
         </div>
+        <ValueMedal idx={idx} v={value} />
+      </div>
+    </div>
+  )
+
+  if (!r.length) return <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">—</div>
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      {r.map((row, idx) => (
+        <Bar key={idx} idx={idx} labels={row.labels} value={row.value} />
       ))}
     </div>
   )
@@ -980,7 +1009,7 @@ export default function App() {
                               <Gavel className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                               Mayor nº de sanciones
                             </div>
-                            <MiniPodium rows={statsTop2.mostSanctionsTop2} type="count" />
+                            <StatDuo rows={statsTop2.mostSanctionsTop2} type="count" variant="infernal" />
                           </div>
 
                           {/* Sanciones más altas (importe) */}
@@ -989,7 +1018,7 @@ export default function App() {
                               <Skull className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                               Sanciones más altas
                             </div>
-                            <MiniPodium rows={statsTop2.worstPenaltiesTop2} type="amount" />
+                            <StatDuo rows={statsTop2.worstPenaltiesTop2} type="amount" variant="infernal" />
                           </div>
 
                           {/* Días con más sanciones (nº) */}
@@ -998,7 +1027,7 @@ export default function App() {
                               <CalendarX className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                               Días con más sanciones
                             </div>
-                            <MiniPodium rows={statsTop2.daysMostSanctionsTop2} type="count" />
+                            <StatDuo rows={statsTop2.daysMostSanctionsTop2} type="count" variant="infernal" />
                           </div>
                         </div>
                       </div>
@@ -1019,7 +1048,7 @@ export default function App() {
                               <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                               Menor nº de sanciones
                             </div>
-                            <MiniPodium rows={statsTop2.leastSanctionsTop2} type="count" />
+                            <StatDuo rows={statsTop2.leastSanctionsTop2} type="count" />
                           </div>
 
                           {/* Mayor nº de bonificaciones */}
@@ -1028,7 +1057,7 @@ export default function App() {
                               <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                               Mayor nº de bonificaciones
                             </div>
-                            <MiniPodium rows={statsTop2.mostBonusesTop2} type="count" />
+                            <StatDuo rows={statsTop2.mostBonusesTop2} type="count" />
                           </div>
 
                           {/* Bonificaciones más altas (importe) */}
@@ -1037,7 +1066,7 @@ export default function App() {
                               <Gem className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                               Bonificaciones más altas
                             </div>
-                            <MiniPodium rows={statsTop2.biggestBonusesTop2} type="amount" />
+                            <StatDuo rows={statsTop2.biggestBonusesTop2} type="amount" />
                           </div>
                         </div>
                       </div>
