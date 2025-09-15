@@ -6,7 +6,8 @@ import { createClient } from '@supabase/supabase-js'
 import {
   ChevronDown, Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
-  BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame
+  BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame,
+  Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -282,101 +283,105 @@ export default function App() {
   }, [detailParticipant])
 
   // ==============================
-  //  Estadísticas (frontend): empates y listas completas + días con más sanciones (nº)
+  //  Estadísticas – Top 2 (dedupe por valor) 
   // ==============================
-  const stats = useMemo(() => {
-    const base = {
-      mostSanctions: { names: [], count: 0 },
-      leastSanctions: { names: [], count: 0 },
-      worstPenalties: [],   // [{pen, participant}]
-      mostBonuses: { names: [], count: 0 },
-      biggestBonuses: [],   // [{pen, participant}]
-      naughtyCountDays: []  // [{ day: 'YYYY-MM-DD', negatives_count: N, negative_sum: -X }]
-    }
-    if (!participants?.length) return base
+  const statsTop2 = useMemo(() => {
+    const negCount = Object.fromEntries((participants || []).map(p => [p.id, 0]))
+    const posCount = Object.fromEntries((participants || []).map(p => [p.id, 0]))
 
-    // Conteos y extremos
-    const negCount = Object.fromEntries(participants.map(p => [p.id, 0]))
-    const posCount = Object.fromEntries(participants.map(p => [p.id, 0]))
-    let minNegAmount = null
-    let maxPosAmount = null
+    const negatives = []  // sanciones: { amount<0, name }
+    const positives = []  // bonificaciones: { amount>0, name }
+    const perDay = new Map() // YYYY-MM-DD -> { count }
 
-    // Para el cálculo por día (máximo nº de sanciones)
-    const perDay = new Map() // día -> { count, sum }
-
-    for (const pen of penalties || []) {
+    for (const pen of (penalties || [])) {
+      const pid = pen.participant_id
       const amount = Number(pen.amount) || 0
-      if (amount < 0) {
-        // Conteos por participante
-        negCount[pen.participant_id] = (negCount[pen.participant_id] || 0) + 1
-        if (minNegAmount === null || amount < minNegAmount) minNegAmount = amount
+      const part = (participants || []).find(pp => pp.id === pid)
+      const name = part?.name ?? '—'
 
-        // Agregado por día (solo sanciones negativas)
+      if (amount < 0) {
+        negCount[pid] = (negCount[pid] || 0) + 1
+        negatives.push({ amount, name })
         if (pen.date) {
-          const day = new Date(pen.date).toISOString().slice(0, 10) // YYYY-MM-DD
-          const prev = perDay.get(day) || { count: 0, sum: 0 }
-          prev.count += 1
-          prev.sum += amount
-          perDay.set(day, prev)
+          const day = new Date(pen.date).toISOString().slice(0, 10)
+          const curr = perDay.get(day) || { count: 0 }
+          curr.count += 1
+          perDay.set(day, curr)
         }
       } else if (amount > 0) {
-        posCount[pen.participant_id] = (posCount[pen.participant_id] || 0) + 1
-        if (maxPosAmount === null || amount > maxPosAmount) maxPosAmount = amount
+        posCount[pid] = (posCount[pid] || 0) + 1
+        positives.push({ amount, name })
       }
     }
 
-    const negEntries = Object.entries(negCount)
-    const maxNeg = Math.max(0, ...negEntries.map(([, c]) => c))
-    const minNeg = Math.min(...negEntries.map(([, c]) => c))
-
-    const mostNames = negEntries
-      .filter(([, c]) => c === maxNeg)
-      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
-
-    const leastNames = negEntries
-      .filter(([, c]) => c === minNeg)
-      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
-
-    const maxPos = Math.max(0, ...Object.values(posCount))
-    const mostBonusNames = Object.entries(posCount)
-      .filter(([, c]) => c === maxPos && c > 0)
-      .map(([id]) => participants.find(p => p.id === id)?.name || '—')
-
-    // Empates de peor sanción (mismo importe mínimo)
-    const worstPenalties = (minNegAmount === null)
-      ? []
-      : (penalties || [])
-        .filter(p => Number(p.amount) === minNegAmount)
-        .map(p => ({ pen: p, participant: participants.find(pp => pp.id === p.participant_id) }))
-
-    // Empates de mayor bonificación (mismo importe máximo)
-    const biggestBonuses = (maxPosAmount === null)
-      ? []
-      : (penalties || [])
-        .filter(p => Number(p.amount) === maxPosAmount)
-        .map(p => ({ pen: p, participant: participants.find(pp => pp.id === p.participant_id) }))
-
-    // Días con MÁS sanciones (por número) — empates incluidos
-    let naughtyCountDays = []
-    if (perDay.size > 0) {
-      let maxCount = 0
-      for (const { count } of perDay.values()) {
-        if (count > maxCount) maxCount = count
+    // Agrupa por valor, deduplica labels, ordena y devuelve Top N de valores distintos
+    function topNByValueDistinct(entries, getValue, getLabel, sortDir = 'desc', N = 2) {
+      const byValue = new Map()
+      for (const e of entries) {
+        const v = getValue(e)
+        if (!byValue.has(v)) byValue.set(v, new Set())
+        byValue.get(v).add(getLabel(e)) // ← dedupe
       }
-      for (const [day, { count, sum }] of perDay.entries()) {
-        if (count === maxCount) naughtyCountDays.push({ day, negatives_count: count, negative_sum: sum })
-      }
-      // Orden descendente por fecha
-      naughtyCountDays.sort((a, b) => (a.day < b.day ? 1 : -1))
+      const values = Array.from(byValue.keys()).sort((a, b) => sortDir === 'asc' ? a - b : b - a)
+      const topVals = values.slice(0, N)
+      return topVals.map(v => ({ value: v, labels: Array.from(byValue.get(v)).sort() }))
     }
+
+    const mostSanctionsTop2 = topNByValueDistinct(
+      Object.entries(negCount).map(([pid, c]) => ({ pid, c })),
+      e => e.c,
+      e => (participants || []).find(p => p.id === e.pid)?.name ?? '—',
+      'desc',
+      2
+    )
+
+    const leastSanctionsTop2 = topNByValueDistinct(
+      Object.entries(negCount).map(([pid, c]) => ({ pid, c })),
+      e => e.c,
+      e => (participants || []).find(p => p.id === e.pid)?.name ?? '—',
+      'asc',
+      2
+    )
+
+    const mostBonusesTop2 = topNByValueDistinct(
+      Object.entries(posCount).map(([pid, c]) => ({ pid, c })),
+      e => e.c,
+      e => (participants || []).find(p => p.id === e.pid)?.name ?? '—',
+      'desc',
+      2
+    )
+
+    const worstPenaltiesTop2 = topNByValueDistinct(
+      negatives,
+      e => e.amount,
+      e => e.name,
+      'asc',
+      2
+    )
+
+    const biggestBonusesTop2 = topNByValueDistinct(
+      positives,
+      e => e.amount,
+      e => e.name,
+      'desc',
+      2
+    )
+
+    const daysMostSanctionsTop2 = topNByValueDistinct(
+      Array.from(perDay.entries()).map(([day, obj]) => ({ day, count: obj.count })),
+      e => e.count,
+      e => e.day,
+      'desc',
+      2
+    )
 
     return {
-      mostSanctions: { names: mostNames, count: maxNeg },
-      leastSanctions: { names: leastNames, count: minNeg },
-      worstPenalties,
-      mostBonuses: { names: mostBonusNames, count: maxPos },
-      biggestBonuses,
-      naughtyCountDays
+      mostSanctionsTop2,
+      leastSanctionsTop2,
+      mostBonusesTop2,
+      worstPenaltiesTop2,
+      biggestBonusesTop2,
+      daysMostSanctionsTop2,
     }
   }, [participants, penalties])
 
@@ -793,11 +798,13 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* === ESTADÍSTICAS === */}
+            {/* ==============================
+                ESTADÍSTICAS – Top 2 con mini-podio (lista vertical y sin duplicados)
+              ================================= */}
             <section>
               <SectionHeader
                 title="Estadísticas"
-                subtitle="Datos curiosos, récords y villanos de la jornada 😈"
+                subtitle="Top 2 en todas las categorías (empates incluidos)"
                 collapsed={collapsedStats}
                 onToggle={() => setCollapsedStats(v => !v)}
               />
@@ -809,157 +816,127 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.18 }}
-                    className="mt-4"
+                    className="mt-4 grid md:grid-cols-2 lg:grid-cols-3 gap-4"
                   >
-                    <Card className="glass card-float border border-slate-200 dark:border-slate-700 overflow-hidden">
-                      <CardHeader className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-3">
-                            <BarChart2 className="w-7 h-7" /> Panel de estadísticas
-                          </CardTitle>
-                          <CardDescription>Ángeles y demonios del Fantasy 😇😈</CardDescription>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {/* Mayor número de penalizaciones */}
-                          <div className="rounded-2xl p-5 border bg-rose-50/60 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/70">
-                            <div className="text-base font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-3">
-                              <AlertTriangle className="w-7 h-7" /> Mayor nº de sanciones
-                            </div>
-                            <div className="mt-2 text-xl font-extrabold text-rose-700 dark:text-rose-300">
-                              {stats.mostSanctions.count} {stats.mostSanctions.count === 1 ? 'sanción' : 'sanciones'}
-                            </div>
-                            <div className="mt-1 text-sm text-rose-800 dark:text-rose-200">
-                              {stats.mostSanctions.names.length ? stats.mostSanctions.names.join(', ') : '—'}
-                            </div>
-                            <div className="mt-2 text-xs text-rose-700/80 dark:text-rose-300/80">
-                              ¡Menos VAR y más fair play! 😅
-                            </div>
-                          </div>
+                    {(() => {
+                      const Podium = ({ rows, type = 'count' }) => {
+                        const r = Array.isArray(rows) ? rows.slice(0, 2) : [] // ← Top 2
+                        const stripe = (idx) =>
+                          idx === 0
+                            ? 'from-amber-200/70 to-yellow-300/50 dark:from-amber-900/30 dark:to-yellow-900/20'
+                            : 'from-slate-200/70 to-slate-300/50 dark:from-slate-800/40 dark:to-slate-700/30'
+                        const medal = (idx) =>
+                          idx === 0 ? 'bg-amber-400 text-amber-950' : 'bg-slate-300 text-slate-900 dark:bg-slate-400'
 
-                          {/* Menor número de penalizaciones */}
-                          <div className="rounded-2xl p-5 border bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/70">
-                            <div className="text-base font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-3">
-                              <ThumbsUp className="w-7 h-7" /> Menor nº de sanciones
-                            </div>
-                            <div className="mt-2 text-xl font-extrabold text-emerald-700 dark:text-emerald-300">
-                              {stats.leastSanctions.count} {stats.leastSanctions.count === 1 ? 'sanción' : 'sanciones'}
-                            </div>
-                            <div className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-                              {stats.leastSanctions.names.length ? stats.leastSanctions.names.join(', ') : '—'}
-                            </div>
-                            <div className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">
-                              Gente de bien de verdad ✨
-                            </div>
-                          </div>
+                        const ValueBadge = ({ idx, v }) => (
+                          <span
+                            className={[
+                              'inline-flex items-center justify-center rounded-lg px-3 py-1.5',
+                              'text-sm md:text-base font-extrabold shadow-sm ring-1',
+                              idx === 0
+                                ? 'bg-amber-100/90 text-amber-900 ring-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-700'
+                                : 'bg-slate-100/90 text-slate-900 ring-slate-300 dark:bg-slate-800/40 dark:text-slate-100 dark:ring-slate-600',
+                            ].join(' ')}
+                          >
+                            {type === 'count' ? `×${v}` : fmtSigned(v)}
+                          </span>
+                        )
 
-                          {/* Peor(es) sanción(es) (empates incluidos) */}
-                          <div className="rounded-2xl p-5 border bg-amber-50/60 dark:bg-amber-900/20 border-amber-200/70 dark:border-amber-800/70">
-                            <div className="text-base font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-3">
-                              <AlertTriangle className="w-7 h-7" /> Penalización más alta
-                            </div>
-                            {stats.worstPenalties.length > 0 ? (
-                              <ul className="mt-2 space-y-2">
-                                {stats.worstPenalties.map(({ pen, participant }) => (
-                                  <li key={pen.id} className="text-sm">
-                                    <div className="font-bold text-amber-700 dark:text-amber-300">
-                                      {participant?.name || '—'} · {fmtSigned(pen.amount)}
-                                    </div>
-                                    <div className="text-amber-800 dark:text-amber-200">
-                                      {fmtDate(pen.date)} — {pen.reason}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="mt-2 text-sm text-amber-800 dark:text-amber-200">Sin sanciones registradas</div>
-                            )}
-                          </div>
-
-                          {/* Más bonificaciones (conteo, empates) */}
-                          <div className="rounded-2xl p-5 border bg-sky-50/60 dark:bg-sky-900/20 border-sky-200/70 dark:border-sky-800/70">
-                            <div className="text-base font-semibold text-sky-700 dark:text-sky-300 flex items-center gap-3">
-                              <ThumbsUp className="w-7 h-7" /> Más bonificaciones (nº)
-                            </div>
-                            {stats.mostBonuses.count > 0 ? (
-                              <>
-                                <div className="mt-2 text-xl font-extrabold text-sky-700 dark:text-sky-300">
-                                  {stats.mostBonuses.count} {stats.mostBonuses.count === 1 ? 'bonificación' : 'bonificaciones'}
+                        return (
+                          <div className="mt-3 flex flex-col gap-2 min-h-[6.5rem]">
+                            {r.map((row, idx) => (
+                              <div
+                                key={idx}
+                                className={[
+                                  'flex-1',
+                                  'rounded-xl px-3 py-2 border bg-gradient-to-r',
+                                  stripe(idx),
+                                  'border-slate-200 dark:border-slate-700',
+                                  'flex items-stretch gap-3',
+                                ].join(' ')}
+                              >
+                                <div className="flex items-center">
+                                  <span className={['px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wide', medal(idx)].join(' ')}>
+                                    {idx === 0 ? 'Oro' : 'Plata'}
+                                  </span>
                                 </div>
-                                <div className="mt-1 text-sm text-sky-800 dark:text-sky-200">
-                                  {stats.mostBonuses.names.join(', ')}
-                                </div>
-                                <div className="mt-2 text-xs text-sky-700/80 dark:text-sky-300/80">
-                                  ¡Fair play de manual! 😇
-                                </div>
-                              </>
-                            ) : (
-                              <div className="mt-2 text-sm text-sky-800 dark:text-sky-200">Sin bonificaciones por ahora</div>
-                            )}
-                          </div>
-
-                          {/* Mayor(es) bonificación(es) (importe, empates) */}
-                          <div className="rounded-2xl p-5 border bg-violet-50/60 dark:bg-violet-900/20 border-violet-200/70 dark:border-violet-800/70">
-                            <div className="text-base font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-3">
-                              <ThumbsUp className="w-7 h-7" /> Bonificación más grande
-                            </div>
-                            {stats.biggestBonuses.length > 0 ? (
-                              <ul className="mt-2 space-y-2">
-                                {stats.biggestBonuses.map(({ pen, participant }) => (
-                                  <li key={pen.id} className="text-sm">
-                                    <div className="font-bold text-violet-700 dark:text-violet-300">
-                                      {participant?.name || '—'} · {fmtSigned(pen.amount)}
-                                    </div>
-                                    <div className="text-violet-800 dark:text-violet-200">
-                                      {fmtDate(pen.date)} — {pen.reason}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="mt-2 text-sm text-violet-800 dark:text-violet-200">Sin bonificaciones registradas</div>
-                            )}
-                          </div>
-
-                          {/* Día(s) con MÁS sanciones por número (frontend) */}
-                          <div className="rounded-2xl p-5 border bg-rose-50/60 dark:bg-rose-900/20 border-rose-200/70 dark:border-rose-800/70">
-                            <div className="text-base font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-3">
-                              <Calendar className="w-7 h-7" /> Días con más sanciones
-                            </div>
-
-                            {Array.isArray(stats.naughtyCountDays) && stats.naughtyCountDays.length > 0 ? (
-                              <>
-                                {stats.naughtyCountDays.map((d, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={idx > 0 ? 'mt-3 pt-3 border-t border-rose-200/60 dark:border-rose-800/60' : 'mt-2'}
-                                  >
-                                    <div className="text-base font-bold text-rose-700 dark:text-rose-300 flex items-center gap-2">
-                                      <Calendar className="w-5 h-5" />
-                                      {new Date(d.day).toLocaleDateString()}
-                                    </div>
-                                    <div className="text-sm text-rose-800 dark:text-rose-200">
-                                      Nº sanciones: <span className="font-semibold">{d.negatives_count}</span>
-                                      {typeof d.negative_sum === 'number' && (
-                                        <> · Suma negativa: <span className="font-semibold">{d.negative_sum}</span></>
-                                      )}
-                                    </div>
-                                    <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">
-                                      Día movidito en los despachos… 📣
-                                    </div>
+                                <div className="flex-1 flex items-center justify-between gap-3">
+                                  <div className="text-sm text-slate-800 dark:text-slate-200 leading-snug text-right w-full">
+                                    {/* Lista vertical uno por línea */}
+                                    {row.labels && row.labels.length ? (
+                                      <ul className="space-y-0.5">
+                                        {row.labels.map((label, i) => (
+                                          <li key={i}>{label}</li>
+                                        ))}
+                                      </ul>
+                                    ) : '—'}
                                   </div>
-                                ))}
-                              </>
-                            ) : (
-                              <div className="mt-2 text-sm text-rose-800 dark:text-rose-200">
-                                Aún no hay suficientes sanciones para destacar un día.
+                                  <ValueBadge idx={idx} v={row.value} />
+                                </div>
                               </div>
-                            )}
+                            ))}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        )
+                      }
+
+                      return (
+                        <>
+                          {/* Mayor nº de sanciones */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Gavel className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                              Mayor nº de sanciones
+                            </div>
+                            <Podium rows={statsTop2.mostSanctionsTop2} type="count" />
+                          </div>
+
+                          {/* Menor nº de sanciones */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Menor nº de sanciones
+                            </div>
+                            <Podium rows={statsTop2.leastSanctionsTop2} type="count" />
+                          </div>
+
+                          {/* Peores sanciones (por importe) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Skull className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                              Peores sanciones
+                            </div>
+                            <Podium rows={statsTop2.worstPenaltiesTop2} type="amount" />
+                          </div>
+
+                          {/* Más bonificaciones (por nº) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Mayor nº de bonificaciones
+                            </div>
+                            <Podium rows={statsTop2.mostBonusesTop2} type="count" />
+                          </div>
+
+                          {/* Bonificaciones más grandes (por importe) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Gem className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Bonificaciones más grandes
+                            </div>
+                            <Podium rows={statsTop2.biggestBonusesTop2} type="amount" />
+                          </div>
+
+                          {/* Días con más sanciones (por nº) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <CalendarX className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                              Días con más sanciones
+                            </div>
+                            <Podium rows={statsTop2.daysMostSanctionsTop2} type="count" />
+                          </div>
+                        </>
+                      )
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
