@@ -86,6 +86,64 @@ function SectionHeader({ title, subtitle, collapsed, onToggle }) {
   )
 }
 
+// MiniPodium: Top 2 con estilo “oro / plata” y lista vertical
+function MiniPodium({ rows, type = 'count' }) {
+  const r = Array.isArray(rows) ? rows.slice(0, 2) : []
+  const stripe = (idx) =>
+    idx === 0
+      ? 'from-amber-200/70 to-yellow-300/50 dark:from-amber-900/30 dark:to-yellow-900/20'
+      : 'from-slate-200/70 to-slate-300/50 dark:from-slate-800/40 dark:to-slate-700/30'
+  const medal = (idx) =>
+    idx === 0 ? 'bg-amber-400 text-amber-950' : 'bg-slate-300 text-slate-900 dark:bg-slate-400'
+
+  const ValueBadge = ({ idx, v }) => (
+    <span
+      className={[
+        'inline-flex items-center justify-center rounded-lg px-3 py-1.5',
+        'text-sm md:text-base font-extrabold shadow-sm ring-1',
+        idx === 0
+          ? 'bg-amber-100/90 text-amber-900 ring-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-700'
+          : 'bg-slate-100/90 text-slate-900 ring-slate-300 dark:bg-slate-800/40 dark:text-slate-100 dark:ring-slate-600',
+      ].join(' ')}
+    >
+      {type === 'count' ? `×${v}` : fmtSigned(v)}
+    </span>
+  )
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 min-h-[6.5rem]">
+      {r.map((row, idx) => (
+        <div
+          key={idx}
+          className={[
+            'flex-1',
+            'rounded-xl px-3 py-2 border bg-gradient-to-r',
+            stripe(idx),
+            'border-slate-200 dark:border-slate-700',
+            'flex items-stretch gap-3',
+          ].join(' ')}
+        >
+          <div className="flex items-center">
+            <span className={['px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wide', medal(idx)].join(' ')}>
+              {idx === 0 ? 'Oro' : 'Plata'}
+            </span>
+          </div>
+          <div className="flex-1 flex items-center justify-between gap-3">
+            <div className="text-sm text-slate-800 dark:text-slate-200 leading-snug w-full">
+              <ul className="space-y-0.5">
+                {(row.labels || []).map((label, i) => (
+                  <li key={i}>{label}</li>
+                ))}
+              </ul>
+            </div>
+            <ValueBadge idx={idx} v={row.value} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ==============================
 //  APP
 // ==============================
@@ -821,7 +879,7 @@ export default function App() {
             </section>
 
             {/* ==============================
-                ESTADÍSTICAS – Podio del Caos + Top 2 tarjetas
+                ESTADÍSTICAS – Lado oscuro vs lado luminoso
               ================================= */}
             <section>
               <SectionHeader
@@ -832,228 +890,160 @@ export default function App() {
               />
               <AnimatePresence initial={false}>
                 {!collapsedStats && (
-                  <>
-                    {/* === PODIO DEL CAOS (arriba, a todo el ancho) === */}
-                    {worstNegPodium.length > 0 && (
-                      <motion.div
-                        key="stats-podium-chaos"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.18 }}
-                        className="mt-4"
-                      >
-                        <div className="glass border border-rose-300/70 dark:border-rose-700/70 rounded-2xl p-4">
-                          <div className="text-sm font-semibold mb-2 text-rose-700 dark:text-rose-300 flex items-center gap-2">
-                            <Flame className="w-5 h-5" /> Podio del caos
+                  <motion.div
+                    key="stats-groups"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className="mt-4 space-y-6"
+                  >
+                    {/* ====== LADO OSCURO (Sanciones) ====== */}
+                    <div className="glass rounded-2xl border border-rose-200/30 dark:border-rose-800/30 bg-rose-50/40 dark:bg-rose-900/10 shadow-sm">
+                      {/* Cabecera del grupo */}
+                      <div className="px-4 py-3 border-b border-rose-200/60 dark:border-rose-800/60 flex items-center gap-2">
+                        <Skull className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                        <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-300">El lado oscuro (sanciones)</h3>
+                      </div>
+
+                      <div className="p-4 space-y-4">
+                        {/* --- Podio del caos (arriba) --- */}
+                        {worstNegPodium.length > 0 && (
+                          <div className="glass border border-rose-300/70 dark:border-rose-700/70 rounded-2xl p-4">
+                            <div className="text-sm font-semibold mb-2 text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                              <Flame className="w-5 h-5" /> Podio del caos
+                            </div>
+
+                            <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
+                              {/* Plata */}
+                              <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
+                                {worstNegPodium[1] && (
+                                  <div className="glass border border-rose-300/60 dark:border-rose-700/60 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                                    <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white shadow">
+                                      <Skull className="w-7 h-7" />
+                                    </div>
+                                    <div className="mt-2 font-semibold">{worstNegPodium[1].name}</div>
+                                    <div className="text-xs text-rose-700/80 dark:text-rose-300/80">{worstNegPodium[1].team_name || 'Equipo'}</div>
+                                    <div className="mt-2 text-sm">
+                                      <span className="text-slate-700 dark:text-slate-300">Suma sanciones: </span>
+                                      <span className={signTextClass(worstNegPodium[1].totalNeg)}>{fmtSigned(worstNegPodium[1].totalNeg)}</span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">“Reincidente con estilo” 😅</div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Oro */}
+                              <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
+                                {worstNegPodium[0] && (
+                                  <div className="glass border border-rose-400 dark:border-rose-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]">
+                                    <div className="mx-auto w-16 h-16 aspect-square rounded-full bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center text-white shadow">
+                                      <Flame className="w-8 h-8" />
+                                    </div>
+                                    <div className="mt-2 font-bold text-lg">{worstNegPodium[0].name}</div>
+                                    <div className="text-xs text-rose-700/80 dark:text-rose-300/80">{worstNegPodium[0].team_name || 'Equipo'}</div>
+                                    <div className="mt-2">
+                                      <span className="text-slate-700 dark:text-slate-300 text-sm">Suma sanciones: </span>
+                                      <span className={signTextClass(worstNegPodium[0].totalNeg)}>{fmtSigned(worstNegPodium[0].totalNeg)}</span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-rose-700/90 dark:text-rose-300/90">“Capitán del caos absoluto” 🔥</div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Bronce */}
+                              <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
+                                {worstNegPodium[2] && (
+                                  <div className="glass border border-rose-300/60 dark:border-rose-700/60 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
+                                    <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white shadow">
+                                      <Skull className="w-7 h-7" />
+                                    </div>
+                                    <div className="mt-2 font-semibold">{worstNegPodium[2].name}</div>
+                                    <div className="text-xs text-rose-700/80 dark:text-rose-300/80">{worstNegPodium[2].team_name || 'Equipo'}</div>
+                                    <div className="mt-2 text-sm">
+                                      <span className="text-slate-700 dark:text-slate-300">Suma sanciones: </span>
+                                      <span className={signTextClass(worstNegPodium[2].totalNeg)}>{fmtSigned(worstNegPodium[2].totalNeg)}</span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">“Aprendiz de villano” 😈</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tarjetas negativas: grid 3 */}
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Mayor nº de sanciones */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Gavel className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                              Mayor nº de sanciones
+                            </div>
+                            <MiniPodium rows={statsTop2.mostSanctionsTop2} type="count" />
                           </div>
 
-                          <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3 sm:items-end sm:justify-items-center">
-                            {/* Plata */}
-                            <div className="text-center order-2 sm:order-none sm:col-start-1 w-full">
-                              {worstNegPodium[1] && (
-                                <div className="glass border border-rose-300/60 dark:border-rose-700/60 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                                  <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white shadow">
-                                    <Skull className="w-7 h-7" />
-                                  </div>
-                                  <div className="mt-2 font-semibold">{worstNegPodium[1].name}</div>
-                                  <div className="text-xs text-rose-700/80 dark:text-rose-300/80">
-                                    {worstNegPodium[1].team_name || 'Equipo'}
-                                  </div>
-                                  <div className="mt-2 text-sm">
-                                    <span className="text-slate-700 dark:text-slate-300">Suma sanciones: </span>
-                                    <span className={signTextClass(worstNegPodium[1].totalNeg)}>
-                                      {fmtSigned(worstNegPodium[1].totalNeg)}
-                                    </span>
-                                  </div>
-                                  <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">
-                                    “Reincidente con estilo” 😅
-                                  </div>
-                                </div>
-                              )}
+                          {/* Sanciones más altas (importe) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Skull className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                              Sanciones más altas
                             </div>
+                            <MiniPodium rows={statsTop2.worstPenaltiesTop2} type="amount" />
+                          </div>
 
-                            {/* Oro */}
-                            <div className="text-center order-1 sm:order-none sm:col-start-2 w-full">
-                              {worstNegPodium[0] && (
-                                <div className="glass border border-rose-400 dark:border-rose-600 rounded-2xl p-5 card-float shadow-lg mx-auto max-w-[300px]">
-                                  <div className="mx-auto w-16 h-16 aspect-square rounded-full bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center text-white shadow">
-                                    <Flame className="w-8 h-8" />
-                                  </div>
-                                  <div className="mt-2 font-bold text-lg">{worstNegPodium[0].name}</div>
-                                  <div className="text-xs text-rose-700/80 dark:text-rose-300/80">
-                                    {worstNegPodium[0].team_name || 'Equipo'}
-                                  </div>
-                                  <div className="mt-2">
-                                    <span className="text-slate-700 dark:text-slate-300 text-sm">Suma sanciones: </span>
-                                    <span className={signTextClass(worstNegPodium[0].totalNeg)}>
-                                      {fmtSigned(worstNegPodium[0].totalNeg)}
-                                    </span>
-                                  </div>
-                                  <div className="mt-1 text-xs text-rose-700/90 dark:text-rose-300/90">
-                                    “Capitán del caos absoluto” 🔥
-                                  </div>
-                                </div>
-                              )}
+                          {/* Días con más sanciones (nº) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <CalendarX className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                              Días con más sanciones
                             </div>
-
-                            {/* Bronce */}
-                            <div className="text-center order-3 sm:order-none sm:col-start-3 w-full">
-                              {worstNegPodium[2] && (
-                                <div className="glass border border-rose-300/60 dark:border-rose-700/60 rounded-2xl p-4 card-float mx-auto max-w-[280px]">
-                                  <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white shadow">
-                                    <Skull className="w-7 h-7" />
-                                  </div>
-                                  <div className="mt-2 font-semibold">{worstNegPodium[2].name}</div>
-                                  <div className="text-xs text-rose-700/80 dark:text-rose-300/80">
-                                    {worstNegPodium[2].team_name || 'Equipo'}
-                                  </div>
-                                  <div className="mt-2 text-sm">
-                                    <span className="text-slate-700 dark:text-slate-300">Suma sanciones: </span>
-                                    <span className={signTextClass(worstNegPodium[2].totalNeg)}>
-                                      {fmtSigned(worstNegPodium[2].totalNeg)}
-                                    </span>
-                                  </div>
-                                  <div className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">
-                                    “Aprendiz de villano” 😈
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            <MiniPodium rows={statsTop2.daysMostSanctionsTop2} type="count" />
                           </div>
                         </div>
-                      </motion.div>
-                    )}
+                      </div>
+                    </div>
 
-                    {/* === TARJETAS DE ESTADÍSTICAS (abajo) === */}
-                    <motion.div
-                      key="stats-body"
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.18 }}
-                      className="mt-4 grid md:grid-cols-2 lg:grid-cols-3 gap-4"
-                    >
-                      {(() => {
-                        // Mini-podio compartido por todas las tarjetas (Top 2)
-                        const Podium = ({ rows, type = 'count' }) => {
-                          const r = Array.isArray(rows) ? rows.slice(0, 2) : [] // Top 2
-                          const stripe = (idx) =>
-                            idx === 0
-                              ? 'from-amber-200/70 to-yellow-300/50 dark:from-amber-900/30 dark:to-yellow-900/20'
-                              : 'from-slate-200/70 to-slate-300/50 dark:from-slate-800/40 dark:to-slate-700/30'
-                          const medal = (idx) =>
-                            idx === 0 ? 'bg-amber-400 text-amber-950' : 'bg-slate-300 text-slate-900 dark:bg-slate-400'
+                    {/* ====== LADO LUMINOSO (Bonificaciones y fair play) ====== */}
+                    <div className="glass rounded-2xl border border-emerald-200/30 dark:border-emerald-800/30 bg-emerald-50/40 dark:bg-emerald-900/10 shadow-sm">
+                      {/* Cabecera del grupo */}
+                      <div className="px-4 py-3 border-b border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">El lado luminoso (bonificaciones)</h3>
+                      </div>
 
-                          const ValueBadge = ({ idx, v }) => (
-                            <span
-                              className={[
-                                'inline-flex items-center justify-center rounded-lg px-3 py-1.5',
-                                'text-sm md:text-base font-extrabold shadow-sm ring-1',
-                                idx === 0
-                                  ? 'bg-amber-100/90 text-amber-900 ring-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-700'
-                                  : 'bg-slate-100/90 text-slate-900 ring-slate-300 dark:bg-slate-800/40 dark:text-slate-100 dark:ring-slate-600',
-                              ].join(' ')}
-                            >
-                              {type === 'count' ? `×${v}` : fmtSigned(v)}
-                            </span>
-                          )
-
-                          return (
-                            <div className="mt-3 flex flex-col gap-2 min-h-[6.5rem]">
-                              {r.map((row, idx) => (
-                                <div
-                                  key={idx}
-                                  className={[
-                                    'flex-1',
-                                    'rounded-xl px-3 py-2 border bg-gradient-to-r',
-                                    stripe(idx),
-                                    'border-slate-200 dark:border-slate-700',
-                                    'flex items-stretch gap-3',
-                                  ].join(' ')}
-                                >
-                                  <div className="flex items-center">
-                                    <span className={['px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wide', medal(idx)].join(' ')}>
-                                      {idx === 0 ? 'Oro' : 'Plata'}
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 flex items-center justify-between gap-3">
-                                    <div className="text-sm text-slate-800 dark:text-slate-200 leading-snug w-full">
-                                      {/* Lista vertical: un elemento por línea */}
-                                      <ul className="space-y-0.5">
-                                        {(row.labels || []).map((label, i) => (
-                                          <li key={i}>{label}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <ValueBadge idx={idx} v={row.value} />
-                                  </div>
-                                </div>
-                              ))}
+                      <div className="p-4">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Menor nº de sanciones */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Menor nº de sanciones
                             </div>
-                          )
-                        }
+                            <MiniPodium rows={statsTop2.leastSanctionsTop2} type="count" />
+                          </div>
 
-                        return (
-                          <>
-                            {/* Mayor nº de sanciones */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <Gavel className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                                Mayor nº de sanciones
-                              </div>
-                              <Podium rows={statsTop2.mostSanctionsTop2} type="count" />
+                          {/* Mayor nº de bonificaciones */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Mayor nº de bonificaciones
                             </div>
+                            <MiniPodium rows={statsTop2.mostBonusesTop2} type="count" />
+                          </div>
 
-                            {/* Menor nº de sanciones */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                Menor nº de sanciones
-                              </div>
-                              <Podium rows={statsTop2.leastSanctionsTop2} type="count" />
+                          {/* Bonificaciones más altas (importe) */}
+                          <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              <Gem className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              Bonificaciones más altas
                             </div>
-
-                            {/* Peores sanciones (por importe) */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <Skull className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                                Peores sanciones
-                              </div>
-                              <Podium rows={statsTop2.worstPenaltiesTop2} type="amount" />
-                            </div>
-
-                            {/* Mayor nº de bonificaciones */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                Mayor nº de bonificaciones
-                              </div>
-                              <Podium rows={statsTop2.mostBonusesTop2} type="count" />
-                            </div>
-
-                            {/* Bonificaciones más grandes (por importe) */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <Gem className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                Bonificaciones más grandes
-                              </div>
-                              <Podium rows={statsTop2.biggestBonusesTop2} type="amount" />
-                            </div>
-
-                            {/* Días con más sanciones (por nº) */}
-                            <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                <CalendarX className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                                Días con más sanciones
-                              </div>
-                              <Podium rows={statsTop2.daysMostSanctionsTop2} type="count" />
-                            </div>
-                          </>
-                        )
-                      })()}
-                    </motion.div>
-                  </>
+                            <MiniPodium rows={statsTop2.biggestBonusesTop2} type="amount" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </section>
