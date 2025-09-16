@@ -19,7 +19,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Badge from '@/components/ui/Badge.jsx'
 import Avatar from '@/components/ui/Avatar.jsx'
 import Select from '@/components/ui/Select.jsx'
-import Rules from '@/Rules.jsx'
+import { Routes, Route, Link } from "react-router-dom"
+import Rules from "./Rules"
+import Stats from "./pages/Stats"
 
 // ==============================
 //  CONSTANTES
@@ -495,27 +497,11 @@ export default function App() {
   }, [participants, penalties])
 
   // ==============================
-  //  RENDER
+  //  HOME
   // ==============================
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
-      {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
-            <div className="mt-3 gradient-bar" />
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pb-4 flex items-center justify-end gap-3">
-          <ConfettiButton>Modo fiesta</ConfettiButton>
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+  function HomePage() {
+    return (
+      <>
         <KonamiEasterEgg />
 
         {/* Galería de la Liga (Carrusel opcional) */}
@@ -1230,6 +1216,44 @@ export default function App() {
             )}
           </>
         )}
+      </>
+    )
+  }
+
+  // ==============================
+  //  RENDER
+  // ==============================
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
+            <div className="mt-3 gradient-bar" />
+          </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-4 flex items-center justify-end gap-3">
+          <ConfettiButton>Modo fiesta</ConfettiButton>
+          <ThemeToggle />
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-3">
+          <nav className="flex gap-4 text-sm">
+            <Link to="/" className="text-slate-700 dark:text-slate-300 hover:underline">Inicio</Link>
+            <Link to="/rules" className="text-slate-700 dark:text-slate-300 hover:underline">Reglas</Link>
+            <Link to="/stats" className="text-slate-700 dark:text-slate-300 hover:underline">Stats</Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/rules" element={<Rules />} />
+          <Route path="/stats" element={<Stats />} />
+        </Routes>
       </main>
 
       {/* Footer */}
