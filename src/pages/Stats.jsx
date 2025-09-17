@@ -29,6 +29,9 @@ export default function Stats(){
   const [cCompare, setCCompare] = useState(false)
   const [cRecords, setCRecords] = useState(false)
 
+  // UI: ajustes
+  const [showAdjusted, setShowAdjusted] = useState(true)
+
   const [selectedPid, setSelectedPid] = useState('')
 
   useEffect(() => {
@@ -83,8 +86,10 @@ export default function Stats(){
     return result
   }, [byGw])
 
-  const ranksByPid = useMemo(() => {
-    const map = new Map()
+  const { ranksByPid, accumulatedRanksByPid } = useMemo(() => {
+    const rankMap = new Map()
+    const accRankMap = new Map()
+    const accumulatedPoints = new Map() // Mapa para almacenar puntos acumulados por participante
     
     // Primero agrupamos por jornada
     const byJornada = new Map()
@@ -94,24 +99,65 @@ export default function Stats(){
         participant_id: r.participant_id,
         name: r.participants.name,
         team_name: r.participants.team_name,
-        total_points: (r.points_external || 0) + (r.points_adjustments || 0)
+        points_external: r.points_external || 0,
+        points_adjustments: r.points_adjustments || 0
       })
     }
     
-    // Calculamos ranking por jornada
-    for(const [jornada, scores] of byJornada.entries()) {
-      // Ordenar por puntos descendente
-      scores.sort((a, b) => b.total_points - a.total_points)
+    // Ordenar jornadas para procesar en orden
+    const sortedJornadas = Array.from(byJornada.keys()).sort((a, b) => a - b)
+    
+    for(const jornada of sortedJornadas) {
+      const scores = byJornada.get(jornada)
       
-      // Asignar ranking
-      scores.forEach((score, idx) => {
-        if(!map.has(score.participant_id)) map.set(score.participant_id, Array(38).fill(null))
-        map.get(score.participant_id)[jornada - 1] = idx + 1
+      // 1. Rankings por jornada individual
+      const jornadaScores = scores.map(score => ({
+        ...score,
+        total_points: showAdjusted 
+          ? score.points_external + score.points_adjustments
+          : score.points_external
+      }))
+      
+      jornadaScores.sort((a, b) => b.total_points - a.total_points)
+      jornadaScores.forEach((score, idx) => {
+        if(!rankMap.has(score.participant_id)) rankMap.set(score.participant_id, Array(38).fill(null))
+        rankMap.get(score.participant_id)[jornada - 1] = idx + 1
+      })
+      
+      // 2. Actualizar y calcular puntos acumulados
+      scores.forEach(score => {
+        const pid = score.participant_id
+        if(!accumulatedPoints.has(pid)) accumulatedPoints.set(pid, {
+          participant_id: pid,
+          name: score.name,
+          team_name: score.team_name,
+          acc_external: 0,
+          acc_adjustments: 0
+        })
+        
+        const acc = accumulatedPoints.get(pid)
+        acc.acc_external += score.points_external
+        acc.acc_adjustments += score.points_adjustments
+      })
+      
+      // Calcular ranking acumulado para esta jornada
+      const accumulatedScores = Array.from(accumulatedPoints.values())
+        .map(acc => ({
+          ...acc,
+          total_points: showAdjusted 
+            ? acc.acc_external + acc.acc_adjustments
+            : acc.acc_external
+        }))
+      
+      accumulatedScores.sort((a, b) => b.total_points - a.total_points)
+      accumulatedScores.forEach((score, idx) => {
+        if(!accRankMap.has(score.participant_id)) accRankMap.set(score.participant_id, Array(38).fill(null))
+        accRankMap.get(score.participant_id)[jornada - 1] = idx + 1
       })
     }
     
-    return map
-  }, [byGw])
+    return { ranksByPid: rankMap, accumulatedRanksByPid: accRankMap }
+  }, [byGw, showAdjusted]) // Añadimos showAdjusted como dependencia
 
   const leadersCount = useMemo(() => {
     // cuenta jornadas con rank===1 por participante
@@ -251,42 +297,105 @@ export default function Stats(){
         <AnimatePresence initial={false}>
           {!cHistoric && (
             <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
-              <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                  {console.log('Rendering table with jornadas:', jornadas)}
-                  <table className="w-full text-sm min-w-[900px]">
-                    <thead className="bg-slate-50 dark:bg-slate-800/60">
-                      <tr>
-                        <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
-                        {Array.from({length: 38}, (_,i) => i+1).map(gw => (
-                          <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {participants.map(p => {
-                        const arr = ranksByPid.get(p.id) || Array(38).fill(null)
-                        console.log(`Data for ${p.name}:`, arr) // Debug: ver datos por participante
-                        return (
-                          <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
-                            <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
-                            {Array.from({length: 38}, (_,i) => i+1).map(gw => {
-                              const rk = arr[gw-1]
-                              return (
-                                <td key={gw} className="px-1.5 py-1.5">
-                                  <div className={[
-                                    'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                    'border-slate-200 dark:border-slate-700',
-                                    rankCellClass(rk, totalPlayers)
-                                  ].join(' ')}>{rk||'—'}</div>
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+              {/* Toggle de ajustes */}
+              <div className="mb-4 flex items-center justify-end gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showAdjusted}
+                    onChange={e => setShowAdjusted(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-600"></div>
+                  <span className="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    Incluir ajustes
+                  </span>
+                </label>
+              </div>
+
+              {/* Tabla por jornada individual */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                  Ranking por jornada individual
+                </h3>
+                <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[900px]">
+                      <thead className="bg-slate-50 dark:bg-slate-800/60">
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
+                          {Array.from({length: 38}, (_,i) => i+1).map(gw => (
+                            <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {participants.map(p => {
+                          const arr = ranksByPid.get(p.id) || Array(38).fill(null)
+                          return (
+                            <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
+                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
+                              {Array.from({length: 38}, (_,i) => i+1).map(gw => {
+                                const rk = arr[gw-1]
+                                return (
+                                  <td key={gw} className="px-1.5 py-1.5">
+                                    <div className={[
+                                      'rounded-md text-center text-xs font-semibold px-2 py-1 border',
+                                      'border-slate-200 dark:border-slate-700',
+                                      rankCellClass(rk, totalPlayers)
+                                    ].join(' ')}>{rk||'—'}</div>
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla por puntos acumulados */}
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                  Ranking por puntos acumulados
+                </h3>
+                <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[900px]">
+                      <thead className="bg-slate-50 dark:bg-slate-800/60">
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
+                          {Array.from({length: 38}, (_,i) => i+1).map(gw => (
+                            <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {participants.map(p => {
+                          const arr = accumulatedRanksByPid.get(p.id) || Array(38).fill(null)
+                          return (
+                            <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
+                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
+                              {Array.from({length: 38}, (_,i) => i+1).map(gw => {
+                                const rk = arr[gw-1]
+                                return (
+                                  <td key={gw} className="px-1.5 py-1.5">
+                                    <div className={[
+                                      'rounded-md text-center text-xs font-semibold px-2 py-1 border',
+                                      'border-slate-200 dark:border-slate-700',
+                                      rankCellClass(rk, totalPlayers)
+                                    ].join(' ')}>{rk||'—'}</div>
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </motion.div>
