@@ -40,13 +40,20 @@ export default function Stats(){
           .select('id,name,team_name')
           .order('name')
 
-        // Timeseries de ranking por jornada (vista o tabla materializada)
-        // Esperado: gw (1..38), participant_id, name, team_name, rank (1 = líder)
+        // Obtenemos los datos de ranking por jornada directamente de scores
         const { data: times } = await supabase
-          .from('v_ranking_by_gw')
-          .select('gw, participant_id, name, team_name, rank')
-          .order('gw', { ascending: true })
-          .order('rank', { ascending: true })
+          .from('scores')
+          .select(`
+            jornada,
+            participant_id,
+            participants (
+              name,
+              team_name
+            ),
+            points_external,
+            points_adjustments
+          `)
+          .order('jornada', { ascending: true })
 
         // Ranking actual (con externos, ajuste y total)
         const { data: curr } = await supabase
@@ -68,16 +75,41 @@ export default function Stats(){
 
   // ======= Derivados =======
   const jornadas = useMemo(() => {
+    console.log('byGw data:', byGw) // Debug: ver los datos que llegan
     const maxGw = (byGw||[]).reduce((m, r) => Math.max(m, r.gw||0), 0)
-    return Array.from({length: maxGw}, (_,i)=> i+1)
+    console.log('maxGw:', maxGw) // Debug: ver el máximo calculado
+    const result = Array.from({length: maxGw}, (_,i)=> i+1)
+    console.log('jornadas:', result) // Debug: ver el array generado
+    return result
   }, [byGw])
 
   const ranksByPid = useMemo(() => {
     const map = new Map()
+    
+    // Primero agrupamos por jornada
+    const byJornada = new Map()
     for(const r of (byGw||[])){
-      if(!map.has(r.participant_id)) map.set(r.participant_id, [])
-      map.get(r.participant_id)[r.gw] = r.rank // índice por gw (1..N)
+      if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
+      byJornada.get(r.jornada).push({
+        participant_id: r.participant_id,
+        name: r.participants.name,
+        team_name: r.participants.team_name,
+        total_points: (r.points_external || 0) + (r.points_adjustments || 0)
+      })
     }
+    
+    // Calculamos ranking por jornada
+    for(const [jornada, scores] of byJornada.entries()) {
+      // Ordenar por puntos descendente
+      scores.sort((a, b) => b.total_points - a.total_points)
+      
+      // Asignar ranking
+      scores.forEach((score, idx) => {
+        if(!map.has(score.participant_id)) map.set(score.participant_id, Array(38).fill(null))
+        map.get(score.participant_id)[jornada - 1] = idx + 1
+      })
+    }
+    
     return map
   }, [byGw])
 
@@ -221,23 +253,25 @@ export default function Stats(){
             <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
               <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="overflow-x-auto">
+                  {console.log('Rendering table with jornadas:', jornadas)}
                   <table className="w-full text-sm min-w-[900px]">
                     <thead className="bg-slate-50 dark:bg-slate-800/60">
                       <tr>
                         <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
-                        {jornadas.map(gw=> (
+                        {Array.from({length: 38}, (_,i) => i+1).map(gw => (
                           <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {participants.map(p => {
-                        const arr = ranksByPid.get(p.id) || []
+                        const arr = ranksByPid.get(p.id) || Array(38).fill(null)
+                        console.log(`Data for ${p.name}:`, arr) // Debug: ver datos por participante
                         return (
                           <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
                             <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
-                            {jornadas.map(gw => {
-                              const rk = arr[gw]
+                            {Array.from({length: 38}, (_,i) => i+1).map(gw => {
+                              const rk = arr[gw-1]
                               return (
                                 <td key={gw} className="px-1.5 py-1.5">
                                   <div className={[
