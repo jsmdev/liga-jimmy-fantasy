@@ -1241,8 +1241,8 @@ function HomePage() {
               {/* Enlaces de navegación */}
               <nav className="flex flex-wrap items-center gap-2 text-sm p-1.5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
                 <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" />
-                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" />
                 <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" />
+                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" />
               </nav>
 
               {/* Controles */}
