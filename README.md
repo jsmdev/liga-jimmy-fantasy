@@ -19,6 +19,12 @@ npm run dev
 - Añade las env vars en Vercel (Production & Preview).
 - `npm run build` genera `dist` automáticamente.
 
+## Flujo de contribución (ramas y PR)
+- Trabaja siempre en ramas a partir de `main` (por ejemplo, `feat/<breve-descripcion>` o `fix/<breve-descripcion>`).
+- Usa Conventional Commits en los mensajes de commit.
+- Abre un Pull Request hacia `main` usando la plantilla del repositorio.
+- Revisa el documento de contribución para más detalles: [CONTRIBUTING.md](./CONTRIBUTING.md)
+
 ## Incluye
 - Tema oscuro con toggle y persistencia en localStorage
 - Cabecera con gradiente y efecto glass
