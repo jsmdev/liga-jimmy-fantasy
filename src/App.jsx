@@ -7,7 +7,8 @@ import {
   Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
   BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame,
-  Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX
+  Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX,
+  Home, Book, PieChart
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -19,7 +20,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Badge from '@/components/ui/Badge.jsx'
 import Avatar from '@/components/ui/Avatar.jsx'
 import Select from '@/components/ui/Select.jsx'
-import { Routes, Route, Link } from "react-router-dom"
+import { Routes, Route, Link, useLocation } from "react-router-dom"
 import Rules from "./Rules"
 import Stats from "./pages/Stats"
 import SectionHeader from '@/components/SectionHeader.jsx'
@@ -477,7 +478,28 @@ export default function App() {
   // ==============================
   //  HOME
   // ==============================
-  function HomePage() {
+  // Componente para los enlaces de navegación
+function NavigationLink({ to, icon, label }) {
+  const location = useLocation()
+  const isActive = location.pathname === to || (to === '/' && location.pathname === '')
+
+  return (
+    <Link
+      to={to}
+      className={[
+        'relative flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg transition-all font-medium whitespace-nowrap',
+        isActive
+          ? 'bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 dark:from-indigo-500/20 dark:to-cyan-500/20 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200/30 dark:border-indigo-500/20'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/5'
+      ].join(' ')}
+    >
+      {icon}
+      <span>{label}</span>
+    </Link>
+  )
+}
+
+function HomePage() {
     return (
       <>
         <KonamiEasterEgg />
@@ -1205,23 +1227,31 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
-            <div className="mt-3 gradient-bar" />
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Logo y título */}
+            <div className="flex-shrink-0">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
+              <div className="mt-2 sm:mt-3 gradient-bar" />
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4">
+              {/* Enlaces de navegación */}
+              {/* Enlaces de navegación */}
+              <nav className="flex flex-wrap items-center gap-2 text-sm p-1.5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
+                <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" />
+                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" />
+                <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" />
+              </nav>
+
+              {/* Controles */}
+              <div className="flex items-center gap-2 shrink-0">
+                <ConfettiButton>Modo fiesta</ConfettiButton>
+                <ThemeToggle />
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pb-4 flex items-center justify-end gap-3">
-          <ConfettiButton>Modo fiesta</ConfettiButton>
-          <ThemeToggle />
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pb-3">
-          <nav className="flex gap-4 text-sm">
-            <Link to="/" className="text-slate-700 dark:text-slate-300 hover:underline">Inicio</Link>
-            <Link to="/rules" className="text-slate-700 dark:text-slate-300 hover:underline">Reglas</Link>
-            <Link to="/stats" className="text-slate-700 dark:text-slate-300 hover:underline">Stats</Link>
-          </nav>
         </div>
       </header>
 
