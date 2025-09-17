@@ -334,7 +334,10 @@ export default function Stats(){
                           const arr = ranksByPid.get(p.id) || Array(38).fill(null)
                           return (
                             <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
-                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
+                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2">
+                                <div className="font-medium text-slate-900 dark:text-slate-100">{p.name}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{p.team_name || 'Sin equipo'}</div>
+                              </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
                                 return (
@@ -377,7 +380,10 @@ export default function Stats(){
                           const arr = accumulatedRanksByPid.get(p.id) || Array(38).fill(null)
                           return (
                             <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
-                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{p.name}</td>
+                              <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2">
+                                <div className="font-medium text-slate-900 dark:text-slate-100">{p.name}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{p.team_name || 'Sin equipo'}</div>
+                              </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
                                 return (
