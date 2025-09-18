@@ -165,32 +165,52 @@ export default function Stats(){
   }, [byGw, showAdjustedHistoric])
 
   const leadersCount = useMemo(() => {
-    // cuenta jornadas con rank===1 por participante
+    // cuenta jornadas lideradas en la clasificación acumulada
     const counts = new Map()
-    for(const r of (byGw||[])){
-      if(r.rank === 1){ counts.set(r.participant_id, (counts.get(r.participant_id)||0)+1) }
+    const totalJornadas = jornadas.length
+    for(let idx=0; idx<totalJornadas; idx++){
+      let bestRank = Infinity
+      const leaders = []
+      for(const p of participants){
+        const arr = accumulatedRanksByPid.get(p.id) || []
+        const rank = arr[idx]
+        if(!rank) continue
+        if(rank < bestRank){
+          bestRank = rank
+          leaders.length = 0
+          leaders.push(p.id)
+        } else if(rank === bestRank){
+          leaders.push(p.id)
+        }
+      }
+      if(bestRank === 1){
+        leaders.forEach(pid => {
+          counts.set(pid, (counts.get(pid) || 0) + 1)
+        })
+      }
     }
     return counts
-  }, [byGw])
+  }, [participants, accumulatedRanksByPid, jornadas])
 
   const moves = useMemo(() => {
-    // mayores subidas/bajadas entre jornadas consecutivas
+    // mayores subidas/bajadas en el ranking acumulado entre jornadas consecutivas
     const riseList = [] // { pid, name, delta, fromGw, toGw }
     const dropList = []
     for(const p of participants){
-      const arr = ranksByPid.get(p.id) || []
-      for(let gw=2; gw<arr.length; gw++){
-        const prev = arr[gw-1]; const curr = arr[gw]
+      const arr = accumulatedRanksByPid.get(p.id) || []
+      for(let gw=1; gw<arr.length; gw++){
+        const prev = arr[gw-1]
+        const curr = arr[gw]
         if(!prev || !curr) continue
-        const delta = (prev - curr) // positivo = mejora
-        if(delta>0) riseList.push({ pid:p.id, name:p.name, delta, fromGw:gw-1, toGw:gw })
-        if(delta<0) dropList.push({ pid:p.id, name:p.name, delta, fromGw:gw-1, toGw:gw })
+        const delta = prev - curr // positivo = mejora
+        if(delta>0) riseList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1 })
+        if(delta<0) dropList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1 })
       }
     }
     riseList.sort((a,b)=> b.delta - a.delta)
     dropList.sort((a,b)=> Math.abs(b.delta) - Math.abs(a.delta))
     return { riseTop: riseList.slice(0,5), dropTop: dropList.slice(0,5) }
-  }, [participants, ranksByPid])
+  }, [participants, accumulatedRanksByPid])
 
   // ======= UI helpers =======
   function rankCellClass(rank, total){
@@ -272,12 +292,27 @@ export default function Stats(){
         {data.map((d,i)=> d.rank && (
           <g key={i}>
             <circle cx={xs(i)} cy={ys(d.rank)} r="4" className="fill-emerald-600 dark:fill-emerald-400"/>
-            <text x={xs(i)} y={ys(d.rank)-8} textAnchor="middle" className="fill-slate-700 dark:fill-slate-300 text-[10px]">{d.rank}</text>
+            <text
+              x={xs(i)}
+              y={ys(d.rank)-10}
+              textAnchor="middle"
+              className="fill-slate-700 dark:fill-slate-300 text-[16px] sm:text-[15px] md:text-[14px] lg:text-[13px] font-semibold"
+            >
+              {formatOrdinal(d.rank)}
+            </text>
           </g>
         ))}
         {/* eje X */}
         {data.map((d,i)=> (
-          <text key={i} x={xs(i)} y={H-6} textAnchor="middle" className="fill-slate-600 dark:fill-slate-400 text-[10px]">J{d.gw}</text>
+          <text
+            key={i}
+            x={xs(i)}
+            y={H-6}
+            textAnchor="middle"
+            className="fill-slate-600 dark:fill-slate-400 text-[15px] sm:text-[14px] md:text-[13px] lg:text-[12px] font-medium"
+          >
+            J{d.gw}
+          </text>
         ))}
       </svg>
     )
@@ -350,7 +385,8 @@ export default function Stats(){
                   aria-controls="table-jornada"
                   onClick={() => setShowAdjustedHistoric(v => !v)}
                   className={[
-                    'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
+                    'inline-flex flex-wrap items-center justify-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold shadow-sm min-h-[38px] text-center max-w-full leading-tight',
+                    'sm:justify-start sm:px-3 sm:py-2 sm:text-sm sm:min-h-[44px]',
                     'bg-gradient-to-r text-white',
                     showAdjustedHistoric
                       ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
@@ -360,12 +396,14 @@ export default function Stats(){
                   {showAdjustedHistoric ? (
                     <>
                       <EyeOff className="w-4 h-4" />
-                      Ver sin bonificaciones/penalizaciones
+                      <span className="sm:hidden">Ver sin ajuste</span>
+                      <span className="hidden sm:inline">Ver sin bonificaciones/penalizaciones</span>
                     </>
                   ) : (
                     <>
                       <Eye className="w-4 h-4" />
-                      Ver con bonificaciones/penalizaciones
+                      <span className="sm:hidden">Ver con ajuste</span>
+                      <span className="hidden sm:inline">Ver con bonificaciones/penalizaciones</span>
                     </>
                   )}
                 </button>
@@ -380,7 +418,7 @@ export default function Stats(){
                   Ranking por jornada individual
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  Clasificación de los participantes en una jornada concreta. Solo se cuentan los puntos obtenidos en esa fecha, sin tener en cuenta el resto de la temporada.
+                  👉 Clasificación de los participantes en una jornada concreta. Solo se cuentan los puntos obtenidos en esa jornada, sin tener en cuenta el resto de la temporada.
                 </p>
                 <div
                   data-adjustments={showAdjustedHistoric ? 'on' : 'off'}
@@ -459,7 +497,7 @@ export default function Stats(){
                   Ranking por puntos acumulados
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  Clasificación general de la temporada. Suma todos los puntos conseguidos en cada jornada, mostrando quién lidera el total acumulado hasta el momento.
+                  👉 Clasificación general de la temporada. Tabla que recoge, jornada tras jornada, la suma de los puntos conseguidos por cada participante, mostrando la evolución y reflejando la clasificación general en cada momento.
                 </p>
                 <div
                   data-adjustments={showAdjustedHistoric ? 'on' : 'off'}
@@ -536,7 +574,7 @@ export default function Stats(){
       <section>
         <SectionHeader
           title="Gráfica de posiciones por participante"
-          subtitle="El 1 es la cima (eje Y invertido)"
+          subtitle="👉 La gráfica muestra la posición de cada participante en cada jornada: el número indica el puesto. Cuanto más arriba esté la línea, mejor va en la clasificación."
           collapsed={cChart}
           onToggle={()=> setCChart(v=>!v)}
         />
@@ -581,7 +619,8 @@ export default function Stats(){
                   aria-controls="chart-positions"
                   onClick={() => setShowAdjustedChart(v => !v)}
                   className={[
-                    'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
+                    'inline-flex flex-wrap items-center justify-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold shadow-sm min-h-[38px] text-center max-w-full leading-tight',
+                    'sm:justify-start sm:px-3 sm:py-2 sm:text-sm sm:min-h-[44px]',
                     'bg-gradient-to-r text-white',
                     showAdjustedChart
                       ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
@@ -591,12 +630,14 @@ export default function Stats(){
                   {showAdjustedChart ? (
                     <>
                       <EyeOff className="w-4 h-4" />
-                      Ver sin bonificaciones/penalizaciones
+                      <span className="sm:hidden">Ver sin ajuste</span>
+                      <span className="hidden sm:inline">Ver sin bonificaciones/penalizaciones</span>
                     </>
                   ) : (
                     <>
                       <Eye className="w-4 h-4" />
-                      Ver con bonificaciones/penalizaciones
+                      <span className="sm:hidden">Ver con ajuste</span>
+                      <span className="hidden sm:inline">Ver con bonificaciones/penalizaciones</span>
                     </>
                   )}
                 </button>
@@ -607,7 +648,10 @@ export default function Stats(){
                   <Select
                     value={selectedPid}
                     onChange={v=> setSelectedPid(v)}
-                    options={participants.map(p=>({ value:p.id, label:p.name }))}
+                    options={participants.map(p=>({
+                      value: p.id,
+                      label: p.team_name ? `${p.name} (${p.team_name})` : p.name
+                    }))}
                     className="w-full"
                   />
                 </div>
@@ -623,59 +667,118 @@ export default function Stats(){
       <section>
         <SectionHeader
           title="Récords de movimiento"
-          subtitle="Más jornadas como líder • Mayor subida • Mayor bajada"
+          subtitle="👉 Más jornadas como líder • Mayor subida • Mayor bajada"
           collapsed={cRecords}
           onToggle={()=> setCRecords(v=>!v)}
         />
         <AnimatePresence initial={false}>
           {!cRecords && (
-            <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Más jornadas líder */}
-              <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  <Trophy className="w-4 h-4 text-amber-600"/> Más jornadas líder
+            <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <h2 className="flex items-center gap-3">
+                  <img
+                    src={showAdjustedHistoric
+                      ? 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/JimmyFantasia.jpeg'
+                      : 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/logo_fantasy_dazn.jpeg'}
+                    alt={showAdjustedHistoric ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                    decoding="async"
+                    loading="lazy"
+                    className={[
+                      'h-9 w-9 rounded-full object-cover ring-2',
+                      showAdjustedHistoric ? 'ring-indigo-400 dark:ring-violet-400' : 'ring-amber-400 dark:ring-orange-400'
+                    ].join(' ')}
+                  />
+                  {showAdjustedHistoric
+                    ? <Medal className="w-5 h-5 text-indigo-500 dark:text-violet-400"/>
+                    : <PlaySquare className="w-5 h-5 text-amber-500 dark:text-orange-400"/>}
+                  <span
+                    className={[
+                      'text-xl md:text-2xl font-extrabold tracking-tight',
+                      'bg-clip-text text-transparent bg-gradient-to-r',
+                      showAdjustedHistoric
+                        ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                        : 'from-amber-500 via-orange-500 to-yellow-400'
+                    ].join(' ')}
+                  >
+                    {showAdjustedHistoric ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                  </span>
+                </h2>
+                <button
+                  type="button"
+                  aria-pressed={showAdjustedHistoric}
+                  onClick={() => setShowAdjustedHistoric(v => !v)}
+                  className={[
+                    'inline-flex flex-wrap items-center justify-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold shadow-sm min-h-[38px] text-center max-w-full leading-tight',
+                    'sm:justify-start sm:px-3 sm:py-2 sm:text-sm sm:min-h-[44px]',
+                    'bg-gradient-to-r text-white',
+                    showAdjustedHistoric
+                      ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
+                      : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
+                  ].join(' ')}
+                >
+                  {showAdjustedHistoric ? (
+                    <>
+                      <EyeOff className="w-4 h-4" />
+                      <span className="sm:hidden">Ver sin ajuste</span>
+                      <span className="hidden sm:inline">Ver sin bonificaciones/penalizaciones</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      <span className="sm:hidden">Ver con ajuste</span>
+                      <span className="hidden sm:inline">Ver con bonificaciones/penalizaciones</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Más jornadas líder */}
+                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <Trophy className="w-4 h-4 text-amber-600"/> Más jornadas líder
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {participants
+                      .map(p => ({ id:p.id, name:p.name, count: leadersCount.get(p.id)||0 }))
+                      .sort((a,b)=> b.count - a.count)
+                      .slice(0,5)
+                      .map((r,idx)=> (
+                        <div key={r.id} className="flex items-center justify-between">
+                          <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name}</span>
+                          <Badge className="bg-amber-500 text-amber-950">×{r.count}</Badge>
+                        </div>
+                      ))}
+                  </div>
                 </div>
-                <div className="mt-3 space-y-2">
-                  {participants
-                    .map(p => ({ id:p.id, name:p.name, count: leadersCount.get(p.id)||0 }))
-                    .sort((a,b)=> b.count - a.count)
-                    .slice(0,5)
-                    .map((r,idx)=> (
-                      <div key={r.id} className="flex items-center justify-between">
-                        <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name}</span>
-                        <Badge className="bg-amber-500 text-amber-950">×{r.count}</Badge>
+
+                {/* Mayor subida */}
+                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <TrendingUp className="w-4 h-4 text-emerald-600"/> Mayor subida (entre jornadas)
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {moves.riseTop.map((r,idx)=> (
+                      <div key={idx} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
+                        <Badge className="bg-emerald-600 text-white">+{r.delta}</Badge>
                       </div>
                     ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Mayor subida */}
-              <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  <TrendingUp className="w-4 h-4 text-emerald-600"/> Mayor subida (entre jornadas)
-                </div>
-                <div className="mt-3 space-y-2">
-                  {moves.riseTop.map((r,idx)=> (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
-                      <Badge className="bg-emerald-600 text-white">+{r.delta}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mayor bajada */}
-              <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  <TrendingDown className="w-4 h-4 text-rose-600"/> Mayor bajada (entre jornadas)
-                </div>
-                <div className="mt-3 space-y-2">
-                  {moves.dropTop.map((r,idx)=> (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
-                      <Badge className="bg-rose-600 text-white">{r.delta}</Badge>
-                    </div>
-                  ))}
+                {/* Mayor bajada */}
+                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <TrendingDown className="w-4 h-4 text-rose-600"/> Mayor bajada (entre jornadas)
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {moves.dropTop.map((r,idx)=> (
+                      <div key={idx} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
+                        <Badge className="bg-rose-600 text-white">{r.delta}</Badge>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </motion.div>

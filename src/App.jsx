@@ -487,7 +487,7 @@ function NavigationLink({ to, icon, label }) {
     <Link
       to={to}
       className={[
-        'relative flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg transition-all font-medium whitespace-nowrap',
+        'relative flex flex-1 min-w-0 items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg transition-all font-medium text-center',
         isActive
           ? 'bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 dark:from-indigo-500/20 dark:to-cyan-500/20 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200/30 dark:border-indigo-500/20'
           : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/5'
@@ -1213,17 +1213,16 @@ function HomePage() {
               <div className="mt-2 sm:mt-3 gradient-bar" />
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4 sm:flex-1 sm:min-w-0">
               {/* Enlaces de navegación */}
-              {/* Enlaces de navegación */}
-              <nav className="flex flex-wrap items-center gap-2 text-sm p-1.5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
+              <nav className="flex-1 min-w-0 flex items-center gap-2 text-sm p-1.5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
                 <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" />
                 <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" />
                 <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" />
               </nav>
 
               {/* Controles */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 justify-end">
                 <ConfettiButton>Modo fiesta</ConfettiButton>
                 <ThemeToggle />
               </div>
