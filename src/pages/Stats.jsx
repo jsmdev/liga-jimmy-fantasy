@@ -30,23 +30,10 @@ export default function Stats(){
   const [cCompare, setCCompare] = useState(false)
   const [cRecords, setCRecords] = useState(false)
 
-  // UI: ajustes (global)
-  const [showAdjusted, setShowAdjusted] = useState(true)
-
-  // Deep-link: ?ajustes=on|off (por defecto: on)
-  useEffect(() => {
-    const qs = new URLSearchParams(window.location.search)
-    const val = (qs.get('ajustes') || 'on').toLowerCase()
-    setShowAdjusted(val !== 'off')
-  }, [])
-
-  // Sincroniza la URL al alternar (sin recargar)
-  useEffect(() => {
-    const qs = new URLSearchParams(window.location.search)
-    qs.set('ajustes', showAdjusted ? 'on' : 'off')
-    const newUrl = `${window.location.pathname}?${qs.toString()}${window.location.hash || ''}`
-    window.history.replaceState({}, '', newUrl)
-  }, [showAdjusted])
+  // UI: ajustes por sección (independientes)
+  const [showAdjustedHistoric, setShowAdjustedHistoric] = useState(true)
+  const [showAdjustedAccum, setShowAdjustedAccum] = useState(true)
+  const [showAdjustedChart, setShowAdjustedChart] = useState(true)
 
   const [selectedPid, setSelectedPid] = useState('')
 
@@ -94,20 +81,13 @@ export default function Stats(){
 
   // ======= Derivados =======
   const jornadas = useMemo(() => {
-    console.log('byGw data:', byGw) // Debug: ver los datos que llegan
-    const maxGw = (byGw||[]).reduce((m, r) => Math.max(m, r.gw||0), 0)
-    console.log('maxGw:', maxGw) // Debug: ver el máximo calculado
-    const result = Array.from({length: maxGw}, (_,i)=> i+1)
-    console.log('jornadas:', result) // Debug: ver el array generado
-    return result
+    const maxGw = (byGw||[]).reduce((m, r) => Math.max(m, r.jornada||0), 0)
+    return Array.from({length: maxGw}, (_,i)=> i+1)
   }, [byGw])
 
-  const { ranksByPid, accumulatedRanksByPid } = useMemo(() => {
+  // Ranking por jornada individual (depende de showAdjustedHistoric)
+  const ranksByPid = useMemo(() => {
     const rankMap = new Map()
-    const accRankMap = new Map()
-    const accumulatedPoints = new Map() // Mapa para almacenar puntos acumulados por participante
-    
-    // Primero agrupamos por jornada
     const byJornada = new Map()
     for(const r of (byGw||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
@@ -119,28 +99,43 @@ export default function Stats(){
         points_adjustments: r.points_adjustments || 0
       })
     }
-    
-    // Ordenar jornadas para procesar en orden
     const sortedJornadas = Array.from(byJornada.keys()).sort((a, b) => a - b)
-    
     for(const jornada of sortedJornadas) {
       const scores = byJornada.get(jornada)
-      
-      // 1. Rankings por jornada individual
       const jornadaScores = scores.map(score => ({
         ...score,
-        total_points: showAdjusted 
+        total_points: showAdjustedHistoric
           ? score.points_external + score.points_adjustments
           : score.points_external
       }))
-      
       jornadaScores.sort((a, b) => b.total_points - a.total_points)
       jornadaScores.forEach((score, idx) => {
         if(!rankMap.has(score.participant_id)) rankMap.set(score.participant_id, Array(38).fill(null))
         rankMap.get(score.participant_id)[jornada - 1] = idx + 1
       })
-      
-      // 2. Actualizar y calcular puntos acumulados
+    }
+    return rankMap
+  }, [byGw, showAdjustedHistoric])
+
+  // Ranking por puntos acumulados (depende de showAdjustedAccum)
+  const accumulatedRanksByPid = useMemo(() => {
+    const accRankMap = new Map()
+    const accumulatedPoints = new Map()
+    const byJornada = new Map()
+    for(const r of (byGw||[])){
+      if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
+      byJornada.get(r.jornada).push({
+        participant_id: r.participant_id,
+        name: r.participants.name,
+        team_name: r.participants.team_name,
+        points_external: r.points_external || 0,
+        points_adjustments: r.points_adjustments || 0
+      })
+    }
+    const sortedJornadas = Array.from(byJornada.keys()).sort((a, b) => a - b)
+    for(const jornada of sortedJornadas) {
+      const scores = byJornada.get(jornada)
+      // acumular
       scores.forEach(score => {
         const pid = score.participant_id
         if(!accumulatedPoints.has(pid)) accumulatedPoints.set(pid, {
@@ -150,30 +145,26 @@ export default function Stats(){
           acc_external: 0,
           acc_adjustments: 0
         })
-        
         const acc = accumulatedPoints.get(pid)
         acc.acc_external += score.points_external
         acc.acc_adjustments += score.points_adjustments
       })
-      
-      // Calcular ranking acumulado para esta jornada
+      // ranking acumulado en esta jornada
       const accumulatedScores = Array.from(accumulatedPoints.values())
         .map(acc => ({
           ...acc,
-          total_points: showAdjusted 
+          total_points: showAdjustedAccum
             ? acc.acc_external + acc.acc_adjustments
             : acc.acc_external
         }))
-      
       accumulatedScores.sort((a, b) => b.total_points - a.total_points)
       accumulatedScores.forEach((score, idx) => {
         if(!accRankMap.has(score.participant_id)) accRankMap.set(score.participant_id, Array(38).fill(null))
         accRankMap.get(score.participant_id)[jornada - 1] = idx + 1
       })
     }
-    
-    return { ranksByPid: rankMap, accumulatedRanksByPid: accRankMap }
-  }, [byGw, showAdjusted]) // Añadimos showAdjusted como dependencia
+    return accRankMap
+  }, [byGw, showAdjustedAccum])
 
   const leadersCount = useMemo(() => {
     // cuenta jornadas con rank===1 por participante
@@ -249,11 +240,41 @@ export default function Stats(){
   }
 
   // Datos para la gráfica del participante seleccionado
+  // Recalcular ranking por jornada para la gráfica según su propio estado
+  const chartRanksByPid = useMemo(() => {
+    const rankMap = new Map()
+    const byJornada = new Map()
+    for(const r of (byGw||[])){
+      if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
+      byJornada.get(r.jornada).push({
+        participant_id: r.participant_id,
+        points_external: r.points_external || 0,
+        points_adjustments: r.points_adjustments || 0
+      })
+    }
+    const sortedJornadas = Array.from(byJornada.keys()).sort((a, b) => a - b)
+    for(const jornada of sortedJornadas) {
+      const scores = byJornada.get(jornada)
+      const jornadaScores = scores.map(score => ({
+        ...score,
+        total_points: showAdjustedChart
+          ? score.points_external + score.points_adjustments
+          : score.points_external
+      }))
+      jornadaScores.sort((a, b) => b.total_points - a.total_points)
+      jornadaScores.forEach((score, idx) => {
+        if(!rankMap.has(score.participant_id)) rankMap.set(score.participant_id, Array(38).fill(null))
+        rankMap.get(score.participant_id)[jornada - 1] = idx + 1
+      })
+    }
+    return rankMap
+  }, [byGw, showAdjustedChart])
+
   const chartData = useMemo(() => {
     if(!selectedPid) return []
-    const arr = ranksByPid.get(selectedPid) || []
-    return jornadas.map(gw => ({ gw, rank: arr[gw] || null }))
-  }, [selectedPid, ranksByPid, jornadas])
+    const arr = chartRanksByPid.get(selectedPid) || []
+    return jornadas.map(gw => ({ gw, rank: arr[gw-1] || null }))
+  }, [selectedPid, chartRanksByPid, jornadas])
 
   // SVG simple (sin libs) con eje Y invertido (1 arriba)
   function LineChartPositions({ data }){
@@ -312,41 +333,41 @@ export default function Stats(){
       <section>
         <SectionHeader
           title="Ranking histórico por jornada"
-          subtitle="Tabla de posiciones J1 → J38 (scroll horizontal)"
+          subtitle="Tabla de posiciones J1 → J38"
           collapsed={cHistoric}
           onToggle={()=> setCHistoric(v=>!v)}
         />
         <AnimatePresence initial={false}>
           {!cHistoric && (
             <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
-              {/* Cabecera local con título dinámico + botón global de alternancia */}
+              {/* Cabecera local con título dinámico + botón de alternancia (SECCIÓN: Jornada) */}
               <div className="mb-4 flex items-center justify-between gap-4">
                 <h2
                   className={[
                     'text-xl md:text-2xl font-extrabold tracking-tight',
                     'bg-clip-text text-transparent bg-gradient-to-r',
-                    showAdjusted
+                    showAdjustedHistoric
                       ? 'from-indigo-500 via-violet-500 to-cyan-400'
                       : 'from-amber-500 via-orange-500 to-yellow-400'
                   ].join(' ')}
                 >
-                  {showAdjusted ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                  {showAdjustedHistoric ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
                 </h2>
                 <button
                   id="btn-toggle-adjustments"
                   type="button"
-                  aria-pressed={showAdjusted}
-                  aria-controls="table-jornada table-acumulado"
-                  onClick={() => setShowAdjusted(v => !v)}
+                  aria-pressed={showAdjustedHistoric}
+                  aria-controls="table-jornada"
+                  onClick={() => setShowAdjustedHistoric(v => !v)}
                   className={[
                     'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
                     'bg-gradient-to-r text-white',
-                    showAdjusted
+                    showAdjustedHistoric
                       ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
                       : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
                   ].join(' ')}
                 >
-                  {showAdjusted ? (
+                  {showAdjustedHistoric ? (
                     <>
                       <EyeOff className="w-4 h-4" />
                       Ver sin bonificaciones/penalizaciones
@@ -364,7 +385,7 @@ export default function Stats(){
               <div className="mb-8">
                 <h3 className={[
                   'text-lg font-semibold mb-3',
-                  showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
+                  showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
                 ].join(' ')}>
                   Ranking por jornada individual
                 </h3>
@@ -372,31 +393,31 @@ export default function Stats(){
                   Clasificación de los participantes en una jornada concreta. Solo se cuentan los puntos obtenidos en esa fecha, sin tener en cuenta el resto de la temporada.
                 </p>
                 <div
-                  data-adjustments={showAdjusted ? 'on' : 'off'}
+                  data-adjustments={showAdjustedHistoric ? 'on' : 'off'}
                   className={[
                     'glass rounded-2xl overflow-hidden border',
-                    showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
+                    showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
                   ].join(' ')}
                 >
                   <div className="overflow-x-auto">
                     <table id="table-jornada" className="w-full text-sm min-w-[900px]">
                       <thead className={[
                         'bg-gradient-to-r',
-                        showAdjusted
+                        showAdjustedHistoric
                           ? 'from-indigo-50 via-violet-50 to-cyan-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-cyan-900/20'
                           : 'from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-yellow-900/20'
                       ].join(' ')}>
                         <tr>
                           <th className={[
                             'sticky left-0 z-10 px-3 py-2 text-left',
-                            showAdjusted
+                            showAdjustedHistoric
                               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
                               : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
                           ].join(' ')}>Participante</th>
                           {Array.from({length: 38}, (_,i) => i+1).map(gw => (
                             <th key={gw} className={[
                               'px-2 py-2 text-center',
-                              showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
+                              showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
                               gw > maxJornadaWithData ? 'opacity-50' : ''
                             ].join(' ')}>J{gw}</th>
                           ))}
@@ -408,7 +429,7 @@ export default function Stats(){
                           return (
                             <tr key={p.id} className={[
                               'border-t',
-                              showAdjusted
+                              showAdjustedHistoric
                                 ? 'border-indigo-200 dark:border-violet-700 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/30'
                                 : 'border-amber-200 dark:border-orange-700 hover:bg-amber-50/70 dark:hover:bg-amber-900/30'
                             ].join(' ')}>
@@ -423,7 +444,7 @@ export default function Stats(){
                                   <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
+                                      showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
                                       rankCellClass(rk, totalPlayers)
                                     ].join(' ')}>{formatOrdinal(rk)}</div>
                                   </td>
@@ -440,9 +461,47 @@ export default function Stats(){
 
               {/* Tabla por puntos acumulados */}
               <div>
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <h2
+                    className={[
+                      'text-xl md:text-2xl font-extrabold tracking-tight',
+                      'bg-clip-text text-transparent bg-gradient-to-r',
+                      showAdjustedAccum
+                        ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                        : 'from-amber-500 via-orange-500 to-yellow-400'
+                    ].join(' ')}
+                  >
+                    {showAdjustedAccum ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                  </h2>
+                  <button
+                    type="button"
+                    aria-pressed={showAdjustedAccum}
+                    aria-controls="table-acumulado"
+                    onClick={() => setShowAdjustedAccum(v => !v)}
+                    className={[
+                      'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
+                      'bg-gradient-to-r text-white',
+                      showAdjustedAccum
+                        ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
+                        : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
+                    ].join(' ')}
+                  >
+                    {showAdjustedAccum ? (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        Ver sin bonificaciones/penalizaciones
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        Ver con bonificaciones/penalizaciones
+                      </>
+                    )}
+                  </button>
+                </div>
                 <h3 className={[
                   'text-lg font-semibold mb-3',
-                  showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
+                  showAdjustedAccum ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
                 ].join(' ')}>
                   Ranking por puntos acumulados
                 </h3>
@@ -450,31 +509,31 @@ export default function Stats(){
                   Clasificación general de la temporada. Suma todos los puntos conseguidos en cada jornada, mostrando quién lidera el total acumulado hasta el momento.
                 </p>
                 <div
-                  data-adjustments={showAdjusted ? 'on' : 'off'}
+                  data-adjustments={showAdjustedAccum ? 'on' : 'off'}
                   className={[
                     'glass rounded-2xl overflow-hidden border',
-                    showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
+                    showAdjustedAccum ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
                   ].join(' ')}
                 >
                   <div className="overflow-x-auto">
                     <table id="table-acumulado" className="w-full text-sm min-w-[900px]">
                       <thead className={[
                         'bg-gradient-to-r',
-                        showAdjusted
+                        showAdjustedAccum
                           ? 'from-indigo-50 via-violet-50 to-cyan-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-cyan-900/20'
                           : 'from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-yellow-900/20'
                       ].join(' ')}>
                         <tr>
                           <th className={[
                             'sticky left-0 z-10 px-3 py-2 text-left',
-                            showAdjusted
+                            showAdjustedAccum
                               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
                               : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
                           ].join(' ')}>Participante</th>
                           {Array.from({length: 38}, (_,i) => i+1).map(gw => (
                             <th key={gw} className={[
                               'px-2 py-2 text-center',
-                              showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
+                              showAdjustedAccum ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
                               gw > maxJornadaWithData ? 'opacity-50' : ''
                             ].join(' ')}>J{gw}</th>
                           ))}
@@ -486,7 +545,7 @@ export default function Stats(){
                           return (
                             <tr key={p.id} className={[
                               'border-t',
-                              showAdjusted
+                              showAdjustedAccum
                                 ? 'border-indigo-200 dark:border-violet-700 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/30'
                                 : 'border-amber-200 dark:border-orange-700 hover:bg-amber-50/70 dark:hover:bg-amber-900/30'
                             ].join(' ')}>
@@ -501,7 +560,7 @@ export default function Stats(){
                                   <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
+                                      showAdjustedAccum ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
                                       rankCellClass(rk, totalPlayers)
                                     ].join(' ')}>{formatOrdinal(rk)}</div>
                                   </td>
@@ -530,7 +589,48 @@ export default function Stats(){
         />
         <AnimatePresence initial={false}>
           {!cChart && (
-            <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4 glass rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+            <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4 glass rounded-2xl p-4 border"
+              data-adjustments={showAdjustedChart ? 'on' : 'off'}
+              >
+              {/* Cabecera Chart: título dinámico y botón */}
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <h2
+                  className={[
+                    'text-xl md:text-2xl font-extrabold tracking-tight',
+                    'bg-clip-text text-transparent bg-gradient-to-r',
+                    showAdjustedChart
+                      ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                      : 'from-amber-500 via-orange-500 to-yellow-400'
+                  ].join(' ')}
+                >
+                  {showAdjustedChart ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                </h2>
+                <button
+                  type="button"
+                  aria-pressed={showAdjustedChart}
+                  aria-controls="chart-positions"
+                  onClick={() => setShowAdjustedChart(v => !v)}
+                  className={[
+                    'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
+                    'bg-gradient-to-r text-white',
+                    showAdjustedChart
+                      ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
+                      : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
+                  ].join(' ')}
+                >
+                  {showAdjustedChart ? (
+                    <>
+                      <EyeOff className="w-4 h-4" />
+                      Ver sin bonificaciones/penalizaciones
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Ver con bonificaciones/penalizaciones
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 dark:text-slate-300 mb-1">Participante</label>
@@ -541,7 +641,7 @@ export default function Stats(){
                     className="w-full"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-2" id="chart-positions">
                   <LineChartPositions data={chartData} />
                 </div>
               </div>
