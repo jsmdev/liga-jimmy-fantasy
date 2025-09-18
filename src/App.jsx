@@ -1067,30 +1067,7 @@ function HomePage() {
               </AnimatePresence>
             </section>
 
-            {/* Normativa */}
-            <section>
-              <SectionHeader
-                title="Normativa"
-                subtitle="Reglamento oficial de la competición"
-                collapsed={collapsedRules}
-                onToggle={() => setCollapsedRules(v => !v)}
-              />
-              <AnimatePresence initial={false}>
-                {!collapsedRules && (
-                  <motion.div
-                    key="rules-body"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-4"
-                  >
-                    {/* Pasa aquí la URL pública del PDF si quieres mostrar el botón de descarga */}
-                    <Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL /* o undefined */} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </section>
+            {/* Bloque de Normativa eliminado de la Home */}
 
             {/* Lightbox foto */}
             {lightboxUrl && (
@@ -1259,7 +1236,7 @@ function HomePage() {
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/rules" element={<Rules />} />
+          <Route path="/rules" element={<Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL} />} />
           <Route path="/stats" element={<Stats />} />
         </Routes>
       </main>
