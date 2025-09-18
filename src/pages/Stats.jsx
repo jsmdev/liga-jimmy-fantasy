@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart2, LineChart, ArrowUpDown, TrendingUp, TrendingDown, Trophy, Eye, EyeOff } from 'lucide-react'
+import { BarChart2, LineChart, ArrowUpDown, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare } from 'lucide-react'
 
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
@@ -341,16 +341,33 @@ export default function Stats(){
             <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
               {/* Cabecera local con título dinámico + botón de alternancia (SECCIÓN: Jornada) */}
               <div className="mb-4 flex items-center justify-between gap-4">
-                <h2
-                  className={[
-                    'text-xl md:text-2xl font-extrabold tracking-tight',
-                    'bg-clip-text text-transparent bg-gradient-to-r',
-                    showAdjustedHistoric
-                      ? 'from-indigo-500 via-violet-500 to-cyan-400'
-                      : 'from-amber-500 via-orange-500 to-yellow-400'
-                  ].join(' ')}
-                >
-                  {showAdjustedHistoric ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                <h2 className="flex items-center gap-3">
+                  <img
+                    src={showAdjustedHistoric
+                      ? 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/JimmyFantasia.jpeg'
+                      : 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/logo_fantasy_dazn.jpeg'}
+                    alt={showAdjustedHistoric ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                    decoding="async"
+                    loading="lazy"
+                    className={[
+                      'h-9 w-9 rounded-full object-cover ring-2',
+                      showAdjustedHistoric ? 'ring-indigo-400 dark:ring-violet-400' : 'ring-amber-400 dark:ring-orange-400'
+                    ].join(' ')}
+                  />
+                  {showAdjustedHistoric
+                    ? <Medal className="w-5 h-5 text-indigo-500 dark:text-violet-400"/>
+                    : <PlaySquare className="w-5 h-5 text-amber-500 dark:text-orange-400"/>}
+                  <span
+                    className={[
+                      'text-xl md:text-2xl font-extrabold tracking-tight',
+                      'bg-clip-text text-transparent bg-gradient-to-r',
+                      showAdjustedHistoric
+                        ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                        : 'from-amber-500 via-orange-500 to-yellow-400'
+                    ].join(' ')}
+                  >
+                    {showAdjustedHistoric ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                  </span>
                 </h2>
                 <button
                   id="btn-toggle-adjustments"
@@ -556,16 +573,33 @@ export default function Stats(){
               >
               {/* Cabecera Chart: título dinámico y botón */}
               <div className="mb-4 flex items-center justify-between gap-4">
-                <h2
-                  className={[
-                    'text-xl md:text-2xl font-extrabold tracking-tight',
-                    'bg-clip-text text-transparent bg-gradient-to-r',
-                    showAdjustedChart
-                      ? 'from-indigo-500 via-violet-500 to-cyan-400'
-                      : 'from-amber-500 via-orange-500 to-yellow-400'
-                  ].join(' ')}
-                >
-                  {showAdjustedChart ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                <h2 className="flex items-center gap-3">
+                  <img
+                    src={showAdjustedChart
+                      ? 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/JimmyFantasia.jpeg'
+                      : 'https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/logo_fantasy_dazn.jpeg'}
+                    alt={showAdjustedChart ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                    decoding="async"
+                    loading="lazy"
+                    className={[
+                      'h-9 w-9 rounded-full object-cover ring-2',
+                      showAdjustedChart ? 'ring-indigo-400 dark:ring-violet-400' : 'ring-amber-400 dark:ring-orange-400'
+                    ].join(' ')}
+                  />
+                  {showAdjustedChart
+                    ? <Medal className="w-5 h-5 text-indigo-500 dark:text-violet-400"/>
+                    : <PlaySquare className="w-5 h-5 text-amber-500 dark:text-orange-400"/>}
+                  <span
+                    className={[
+                      'text-xl md:text-2xl font-extrabold tracking-tight',
+                      'bg-clip-text text-transparent bg-gradient-to-r',
+                      showAdjustedChart
+                        ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                        : 'from-amber-500 via-orange-500 to-yellow-400'
+                    ].join(' ')}
+                  >
+                    {showAdjustedChart ? 'Liga Jimmy Fantasy' : 'Liga Fantasy Dazn'}
+                  </span>
                 </h2>
                 <button
                   type="button"
