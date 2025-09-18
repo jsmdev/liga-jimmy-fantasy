@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart2, LineChart, ArrowUpDown, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare } from 'lucide-react'
+import { BarChart2, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare } from 'lucide-react'
 
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
@@ -27,7 +27,6 @@ export default function Stats(){
   // UI: colapsables
   const [cHistoric, setCHistoric] = useState(false)
   const [cChart, setCChart] = useState(false)
-  const [cCompare, setCCompare] = useState(false)
   const [cRecords, setCRecords] = useState(false)
 
   // UI: ajustes por sección (independientes)
@@ -193,41 +192,6 @@ export default function Stats(){
     return { riseTop: riseList.slice(0,5), dropTop: dropList.slice(0,5) }
   }, [participants, ranksByPid])
 
-  const externalOrder = useMemo(() => {
-    // ordenados por puntos externos (desc), con posición
-    const rows = (current||[]).slice().sort((a,b)=> (b.external_total||0) - (a.external_total||0))
-    return rows.map((r, idx) => ({...r, posExt: idx+1 }))
-  }, [current])
-
-  const adjustedOrder = useMemo(() => {
-    // ya viene ordenado por rank asc
-    return (current||[]).map(r => ({...r, posAdj: r.rank}))
-  }, [current])
-
-  const compareRows = useMemo(() => {
-    // une por participante y calcula delta de posiciones (ext -> adj)
-    const byIdExt = new Map(externalOrder.map(r => [r.participant_id, r]))
-    const byIdAdj = new Map(adjustedOrder.map(r => [r.participant_id, r]))
-    const merged = participants.map(p => {
-      const e = byIdExt.get(p.id) || {}
-      const a = byIdAdj.get(p.id) || {}
-      const delta = (e.posExt||0) && (a.posAdj||0) ? (e.posExt - a.posAdj) : 0
-      return {
-        id: p.id,
-        name: p.name,
-        team_name: p.team_name,
-        posExt: e.posExt || '—',
-        ptsExt: e.external_total ?? 0,
-        posAdj: a.posAdj || '—',
-        ptsAdj: a.score ?? 0,
-        delta,
-      }
-    })
-    // orden por posAdj si disponible
-    merged.sort((x,y)=> (x.posAdj||99) - (y.posAdj||99))
-    return merged
-  }, [participants, externalOrder, adjustedOrder])
-
   // ======= UI helpers =======
   function rankCellClass(rank, total){
     if(!rank) return 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400'
@@ -242,6 +206,7 @@ export default function Stats(){
   // Recalcular ranking por jornada para la gráfica según su propio estado
   const chartRanksByPid = useMemo(() => {
     const rankMap = new Map()
+    const accumulatedPoints = new Map()
     const byJornada = new Map()
     for(const r of (byGw||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
@@ -254,14 +219,23 @@ export default function Stats(){
     const sortedJornadas = Array.from(byJornada.keys()).sort((a, b) => a - b)
     for(const jornada of sortedJornadas) {
       const scores = byJornada.get(jornada)
-      const jornadaScores = scores.map(score => ({
-        ...score,
+      scores.forEach(score => {
+        const pid = score.participant_id
+        if(!accumulatedPoints.has(pid)){
+          accumulatedPoints.set(pid, { acc_external: 0, acc_adjustments: 0 })
+        }
+        const acc = accumulatedPoints.get(pid)
+        acc.acc_external += score.points_external
+        acc.acc_adjustments += score.points_adjustments
+      })
+      const accumulatedScores = Array.from(accumulatedPoints.entries()).map(([pid, acc]) => ({
+        participant_id: pid,
         total_points: showAdjustedChart
-          ? score.points_external + score.points_adjustments
-          : score.points_external
+          ? acc.acc_external + acc.acc_adjustments
+          : acc.acc_external
       }))
-      jornadaScores.sort((a, b) => b.total_points - a.total_points)
-      jornadaScores.forEach((score, idx) => {
+      accumulatedScores.sort((a, b) => b.total_points - a.total_points)
+      accumulatedScores.forEach((score, idx) => {
         if(!rankMap.has(score.participant_id)) rankMap.set(score.participant_id, Array(38).fill(null))
         rankMap.get(score.participant_id)[jornada - 1] = idx + 1
       })
@@ -434,7 +408,7 @@ export default function Stats(){
                             <th key={gw} className={[
                               'px-2 py-2 text-center',
                               showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
-                              gw > maxJornadaWithData ? 'opacity-50' : ''
+                              gw > maxJornadaWithData ? 'opacity-30' : ''
                             ].join(' ')}>J{gw}</th>
                           ))}
                         </tr>
@@ -457,7 +431,7 @@ export default function Stats(){
                                 const rk = arr[gw-1]
                                 const isFuture = gw > maxJornadaWithData
                                 return (
-                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
+                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-30' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
                                       showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
@@ -513,7 +487,7 @@ export default function Stats(){
                             <th key={gw} className={[
                               'px-2 py-2 text-center',
                               showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
-                              gw > maxJornadaWithData ? 'opacity-50' : ''
+                              gw > maxJornadaWithData ? 'opacity-30' : ''
                             ].join(' ')}>J{gw}</th>
                           ))}
                         </tr>
@@ -536,7 +510,7 @@ export default function Stats(){
                                 const rk = arr[gw-1]
                                 const isFuture = gw > maxJornadaWithData
                                 return (
-                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
+                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-30' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
                                       showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
@@ -645,66 +619,6 @@ export default function Stats(){
           )}
         </AnimatePresence>
       </section>
-
-      {/* COMPARATIVA EXTERNO vs AJUSTADO */}
-      <section>
-        <SectionHeader
-          title="Comparativa: Fantasy externo vs Liga Jimmy (ajustada)"
-          subtitle="Posiciones y puntos; Δ = posExt − posAjustada (positivo = mejora al aplicar reglas)"
-          collapsed={cCompare}
-          onToggle={()=> setCCompare(v=>!v)}
-        />
-        <AnimatePresence initial={false}>
-          {!cCompare && (
-            <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
-              <Card className="glass card-float overflow-hidden">
-                <CardHeader className="flex flex-row items-center justify-between gap-4">
-                  <div>
-                    <CardTitle>Clasificación comparada</CardTitle>
-                    <CardDescription>
-                      Ordenada por posición <strong>ajustada</strong> (nuestra). <ArrowUpDown className="inline w-4 h-4"/>
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-xl overflow-x-auto border border-slate-200 dark:border-slate-700">
-                    <table className="w-full text-sm min-w-[780px]">
-                      <thead className="bg-slate-50 dark:bg-slate-800/60">
-                        <tr className="text-left">
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300"># Ext</th>
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300">Participante</th>
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300">Pts Ext</th>
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300"># Ajustada</th>
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300">Pts Ajust</th>
-                          <th className="px-3 py-2 text-slate-700 dark:text-slate-300">Δ pos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {compareRows.map(row => (
-                          <tr key={row.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
-                            <td className="px-3 py-2">{row.posExt}</td>
-                            <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{row.name}</td>
-                            <td className="px-3 py-2"><Badge className="bg-slate-600 text-white">{fmtSigned(row.ptsExt||0)}</Badge></td>
-                            <td className="px-3 py-2">{row.posAdj}</td>
-                            <td className="px-3 py-2"><Badge className={row.ptsAdj>=0? 'bg-emerald-600 text-white':'bg-rose-600 text-white'}>{fmtSigned(row.ptsAdj||0)}</Badge></td>
-                            <td className="px-3 py-2 font-semibold">
-                              <span className={[signTextClass(row.delta), 'inline-flex items-center gap-1'].join(' ')}>
-                                {row.delta>0 ? <TrendingUp className="w-4 h-4"/> : row.delta<0 ? <TrendingDown className="w-4 h-4"/> : null}
-                                {fmtSigned(row.delta)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
       {/* RÉCORDS DE MOVIMIENTO */}
       <section>
         <SectionHeader
