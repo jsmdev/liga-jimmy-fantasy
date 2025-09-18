@@ -32,7 +32,6 @@ export default function Stats(){
 
   // UI: ajustes por sección (independientes)
   const [showAdjustedHistoric, setShowAdjustedHistoric] = useState(true)
-  const [showAdjustedAccum, setShowAdjustedAccum] = useState(true)
   const [showAdjustedChart, setShowAdjustedChart] = useState(true)
 
   const [selectedPid, setSelectedPid] = useState('')
@@ -153,7 +152,7 @@ export default function Stats(){
       const accumulatedScores = Array.from(accumulatedPoints.values())
         .map(acc => ({
           ...acc,
-          total_points: showAdjustedAccum
+          total_points: showAdjustedHistoric
             ? acc.acc_external + acc.acc_adjustments
             : acc.acc_external
         }))
@@ -164,7 +163,7 @@ export default function Stats(){
       })
     }
     return accRankMap
-  }, [byGw, showAdjustedAccum])
+  }, [byGw, showAdjustedHistoric])
 
   const leadersCount = useMemo(() => {
     // cuenta jornadas con rank===1 por participante
@@ -461,47 +460,10 @@ export default function Stats(){
 
               {/* Tabla por puntos acumulados */}
               <div>
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <h2
-                    className={[
-                      'text-xl md:text-2xl font-extrabold tracking-tight',
-                      'bg-clip-text text-transparent bg-gradient-to-r',
-                      showAdjustedAccum
-                        ? 'from-indigo-500 via-violet-500 to-cyan-400'
-                        : 'from-amber-500 via-orange-500 to-yellow-400'
-                    ].join(' ')}
-                  >
-                    {showAdjustedAccum ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
-                  </h2>
-                  <button
-                    type="button"
-                    aria-pressed={showAdjustedAccum}
-                    aria-controls="table-acumulado"
-                    onClick={() => setShowAdjustedAccum(v => !v)}
-                    className={[
-                      'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
-                      'bg-gradient-to-r text-white',
-                      showAdjustedAccum
-                        ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
-                        : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
-                    ].join(' ')}
-                  >
-                    {showAdjustedAccum ? (
-                      <>
-                        <EyeOff className="w-4 h-4" />
-                        Ver sin bonificaciones/penalizaciones
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4" />
-                        Ver con bonificaciones/penalizaciones
-                      </>
-                    )}
-                  </button>
-                </div>
+                {/* Eliminado título/botón secundarios: usa el control superior */}
                 <h3 className={[
                   'text-lg font-semibold mb-3',
-                  showAdjustedAccum ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
+                  showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
                 ].join(' ')}>
                   Ranking por puntos acumulados
                 </h3>
@@ -509,31 +471,31 @@ export default function Stats(){
                   Clasificación general de la temporada. Suma todos los puntos conseguidos en cada jornada, mostrando quién lidera el total acumulado hasta el momento.
                 </p>
                 <div
-                  data-adjustments={showAdjustedAccum ? 'on' : 'off'}
+                  data-adjustments={showAdjustedHistoric ? 'on' : 'off'}
                   className={[
                     'glass rounded-2xl overflow-hidden border',
-                    showAdjustedAccum ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
+                    showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
                   ].join(' ')}
                 >
                   <div className="overflow-x-auto">
                     <table id="table-acumulado" className="w-full text-sm min-w-[900px]">
                       <thead className={[
                         'bg-gradient-to-r',
-                        showAdjustedAccum
+                        showAdjustedHistoric
                           ? 'from-indigo-50 via-violet-50 to-cyan-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-cyan-900/20'
                           : 'from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-yellow-900/20'
                       ].join(' ')}>
                         <tr>
                           <th className={[
                             'sticky left-0 z-10 px-3 py-2 text-left',
-                            showAdjustedAccum
+                            showAdjustedHistoric
                               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
                               : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
                           ].join(' ')}>Participante</th>
                           {Array.from({length: 38}, (_,i) => i+1).map(gw => (
                             <th key={gw} className={[
                               'px-2 py-2 text-center',
-                              showAdjustedAccum ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
+                              showAdjustedHistoric ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
                               gw > maxJornadaWithData ? 'opacity-50' : ''
                             ].join(' ')}>J{gw}</th>
                           ))}
@@ -545,7 +507,7 @@ export default function Stats(){
                           return (
                             <tr key={p.id} className={[
                               'border-t',
-                              showAdjustedAccum
+                              showAdjustedHistoric
                                 ? 'border-indigo-200 dark:border-violet-700 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/30'
                                 : 'border-amber-200 dark:border-orange-700 hover:bg-amber-50/70 dark:hover:bg-amber-900/30'
                             ].join(' ')}>
@@ -560,7 +522,7 @@ export default function Stats(){
                                   <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      showAdjustedAccum ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
+                                      showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
                                       rankCellClass(rk, totalPlayers)
                                     ].join(' ')}>{formatOrdinal(rk)}</div>
                                   </td>
