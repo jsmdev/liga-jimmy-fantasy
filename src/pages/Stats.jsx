@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart2, LineChart, ArrowUpDown, TrendingUp, TrendingDown, Trophy } from 'lucide-react'
+import { BarChart2, LineChart, ArrowUpDown, TrendingUp, TrendingDown, Trophy, Eye, EyeOff } from 'lucide-react'
 
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
@@ -16,6 +16,7 @@ const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env
 // Helpers locales (idénticos a Home para coherencia visual)
 function signTextClass(n){ if(n>0) return 'text-emerald-700 dark:text-emerald-400'; if(n<0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100'}
 function fmtSigned(n){ return n>0?('+'+n):String(n) }
+function formatOrdinal(n){ return (Number.isFinite(n) && n>0) ? `${n}º` : '—' }
 
 export default function Stats(){
   const [loading, setLoading] = useState(true)
@@ -29,8 +30,23 @@ export default function Stats(){
   const [cCompare, setCCompare] = useState(false)
   const [cRecords, setCRecords] = useState(false)
 
-  // UI: ajustes
+  // UI: ajustes (global)
   const [showAdjusted, setShowAdjusted] = useState(true)
+
+  // Deep-link: ?ajustes=on|off (por defecto: on)
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search)
+    const val = (qs.get('ajustes') || 'on').toLowerCase()
+    setShowAdjusted(val !== 'off')
+  }, [])
+
+  // Sincroniza la URL al alternar (sin recargar)
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search)
+    qs.set('ajustes', showAdjusted ? 'on' : 'off')
+    const newUrl = `${window.location.pathname}?${qs.toString()}${window.location.hash || ''}`
+    window.history.replaceState({}, '', newUrl)
+  }, [showAdjusted])
 
   const [selectedPid, setSelectedPid] = useState('')
 
@@ -273,6 +289,12 @@ export default function Stats(){
     )
   }
 
+  // Máxima jornada con datos para atenuar columnas futuras sin valores
+  const maxJornadaWithData = useMemo(() => {
+    const arr = (byGw || []).map(r => Number(r.jornada) || 0)
+    return arr.length ? Math.max(...arr) : 0
+  }, [byGw])
+
   // ======= RENDER =======
   if(loading){
     return (
@@ -297,35 +319,86 @@ export default function Stats(){
         <AnimatePresence initial={false}>
           {!cHistoric && (
             <motion.div initial={{opacity:0, y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.18}} className="mt-4">
-              {/* Toggle de ajustes */}
-              <div className="mb-4 flex items-center justify-end gap-3">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showAdjusted}
-                    onChange={e => setShowAdjusted(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-600"></div>
-                  <span className="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Incluir ajustes
-                  </span>
-                </label>
+              {/* Cabecera local con título dinámico + botón global de alternancia */}
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <h2
+                  className={[
+                    'text-xl md:text-2xl font-extrabold tracking-tight',
+                    'bg-clip-text text-transparent bg-gradient-to-r',
+                    showAdjusted
+                      ? 'from-indigo-500 via-violet-500 to-cyan-400'
+                      : 'from-amber-500 via-orange-500 to-yellow-400'
+                  ].join(' ')}
+                >
+                  {showAdjusted ? '🏆 Liga Jimmy Fantasy' : '⚽ Liga Fantasy Dazn'}
+                </h2>
+                <button
+                  id="btn-toggle-adjustments"
+                  type="button"
+                  aria-pressed={showAdjusted}
+                  aria-controls="table-jornada table-acumulado"
+                  onClick={() => setShowAdjusted(v => !v)}
+                  className={[
+                    'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm min-h-[44px]',
+                    'bg-gradient-to-r text-white',
+                    showAdjusted
+                      ? 'border-indigo-300 from-indigo-600 via-violet-600 to-cyan-500 hover:from-indigo-700 hover:via-violet-700 hover:to-cyan-600'
+                      : 'border-amber-300 from-amber-600 via-orange-600 to-yellow-500 hover:from-amber-700 hover:via-orange-700 hover:to-yellow-600'
+                  ].join(' ')}
+                >
+                  {showAdjusted ? (
+                    <>
+                      <EyeOff className="w-4 h-4" />
+                      Ver sin bonificaciones/penalizaciones
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Ver con bonificaciones/penalizaciones
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Tabla por jornada individual */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                <h3 className={[
+                  'text-lg font-semibold mb-3',
+                  showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
+                ].join(' ')}>
                   Ranking por jornada individual
                 </h3>
-                <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  Clasificación de los participantes en una jornada concreta. Solo se cuentan los puntos obtenidos en esa fecha, sin tener en cuenta el resto de la temporada.
+                </p>
+                <div
+                  data-adjustments={showAdjusted ? 'on' : 'off'}
+                  className={[
+                    'glass rounded-2xl overflow-hidden border',
+                    showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
+                  ].join(' ')}
+                >
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[900px]">
-                      <thead className="bg-slate-50 dark:bg-slate-800/60">
+                    <table id="table-jornada" className="w-full text-sm min-w-[900px]">
+                      <thead className={[
+                        'bg-gradient-to-r',
+                        showAdjusted
+                          ? 'from-indigo-50 via-violet-50 to-cyan-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-cyan-900/20'
+                          : 'from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-yellow-900/20'
+                      ].join(' ')}>
                         <tr>
-                          <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
+                          <th className={[
+                            'sticky left-0 z-10 px-3 py-2 text-left',
+                            showAdjusted
+                              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                              : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                          ].join(' ')}>Participante</th>
                           {Array.from({length: 38}, (_,i) => i+1).map(gw => (
-                            <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
+                            <th key={gw} className={[
+                              'px-2 py-2 text-center',
+                              showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
+                              gw > maxJornadaWithData ? 'opacity-50' : ''
+                            ].join(' ')}>J{gw}</th>
                           ))}
                         </tr>
                       </thead>
@@ -333,20 +406,26 @@ export default function Stats(){
                         {participants.map(p => {
                           const arr = ranksByPid.get(p.id) || Array(38).fill(null)
                           return (
-                            <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
+                            <tr key={p.id} className={[
+                              'border-t',
+                              showAdjusted
+                                ? 'border-indigo-200 dark:border-violet-700 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/30'
+                                : 'border-amber-200 dark:border-orange-700 hover:bg-amber-50/70 dark:hover:bg-amber-900/30'
+                            ].join(' ')}>
                               <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2">
                                 <div className="font-medium text-slate-900 dark:text-slate-100">{p.name}</div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{p.team_name || 'Sin equipo'}</div>
                               </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
+                                const isFuture = gw > maxJornadaWithData
                                 return (
-                                  <td key={gw} className="px-1.5 py-1.5">
+                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      'border-slate-200 dark:border-slate-700',
+                                      showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
                                       rankCellClass(rk, totalPlayers)
-                                    ].join(' ')}>{rk||'—'}</div>
+                                    ].join(' ')}>{formatOrdinal(rk)}</div>
                                   </td>
                                 )
                               })}
@@ -361,17 +440,43 @@ export default function Stats(){
 
               {/* Tabla por puntos acumulados */}
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                <h3 className={[
+                  'text-lg font-semibold mb-3',
+                  showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300'
+                ].join(' ')}>
                   Ranking por puntos acumulados
                 </h3>
-                <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  Clasificación general de la temporada. Suma todos los puntos conseguidos en cada jornada, mostrando quién lidera el total acumulado hasta el momento.
+                </p>
+                <div
+                  data-adjustments={showAdjusted ? 'on' : 'off'}
+                  className={[
+                    'glass rounded-2xl overflow-hidden border',
+                    showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700'
+                  ].join(' ')}
+                >
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[900px]">
-                      <thead className="bg-slate-50 dark:bg-slate-800/60">
+                    <table id="table-acumulado" className="w-full text-sm min-w-[900px]">
+                      <thead className={[
+                        'bg-gradient-to-r',
+                        showAdjusted
+                          ? 'from-indigo-50 via-violet-50 to-cyan-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-cyan-900/20'
+                          : 'from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-900/20 dark:via-orange-900/20 dark:to-yellow-900/20'
+                      ].join(' ')}>
                         <tr>
-                          <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-left text-slate-700 dark:text-slate-300">Participante</th>
+                          <th className={[
+                            'sticky left-0 z-10 px-3 py-2 text-left',
+                            showAdjusted
+                              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                              : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                          ].join(' ')}>Participante</th>
                           {Array.from({length: 38}, (_,i) => i+1).map(gw => (
-                            <th key={gw} className="px-2 py-2 text-slate-700 dark:text-slate-300 text-center">J{gw}</th>
+                            <th key={gw} className={[
+                              'px-2 py-2 text-center',
+                              showAdjusted ? 'text-indigo-700 dark:text-indigo-300' : 'text-amber-700 dark:text-amber-300',
+                              gw > maxJornadaWithData ? 'opacity-50' : ''
+                            ].join(' ')}>J{gw}</th>
                           ))}
                         </tr>
                       </thead>
@@ -379,20 +484,26 @@ export default function Stats(){
                         {participants.map(p => {
                           const arr = accumulatedRanksByPid.get(p.id) || Array(38).fill(null)
                           return (
-                            <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
+                            <tr key={p.id} className={[
+                              'border-t',
+                              showAdjusted
+                                ? 'border-indigo-200 dark:border-violet-700 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/30'
+                                : 'border-amber-200 dark:border-orange-700 hover:bg-amber-50/70 dark:hover:bg-amber-900/30'
+                            ].join(' ')}>
                               <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2">
                                 <div className="font-medium text-slate-900 dark:text-slate-100">{p.name}</div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{p.team_name || 'Sin equipo'}</div>
                               </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
+                                const isFuture = gw > maxJornadaWithData
                                 return (
-                                  <td key={gw} className="px-1.5 py-1.5">
+                                  <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-50' : ''].join(' ')}>
                                     <div className={[
                                       'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      'border-slate-200 dark:border-slate-700',
+                                      showAdjusted ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
                                       rankCellClass(rk, totalPlayers)
-                                    ].join(' ')}>{rk||'—'}</div>
+                                    ].join(' ')}>{formatOrdinal(rk)}</div>
                                   </td>
                                 )
                               })}
