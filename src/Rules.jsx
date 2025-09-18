@@ -56,6 +56,8 @@ export default function Rules({ pdfUrl }) {
       .catch(() => setMd('# Normativa\nNo se pudo cargar el reglamento.'))
   }, [])
 
+  // Botón de descarga: se muestra solo si se proporciona pdfUrl
+
   const headings = useMemo(() => extractHeadings(md), [md])
 
   // ScrollSpy robusto observando refs reales (no querySelector)

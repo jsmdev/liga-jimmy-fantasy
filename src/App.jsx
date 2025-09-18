@@ -4,10 +4,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import {
-  ChevronDown, Loader2, ArrowUpDown,
+  Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
   BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame,
-  Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX
+  Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX,
+  Home, Book, PieChart
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -19,7 +20,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import Badge from '@/components/ui/Badge.jsx'
 import Avatar from '@/components/ui/Avatar.jsx'
 import Select from '@/components/ui/Select.jsx'
-import Rules from '@/Rules.jsx'
+import { Routes, Route, Link, useLocation } from "react-router-dom"
+import Rules from "./Rules"
+import Stats from "./pages/Stats"
+import SectionHeader from '@/components/SectionHeader.jsx'
 
 // ==============================
 //  CONSTANTES
@@ -61,29 +65,6 @@ function rankPhrase(rank, total) {
   if (rank === total) return 'Farolillo rojo, pero con pundonor. 🔴'
   if (rank === total - 1) return 'Al filo del abismo… 👀'
   return 'En el pelotón, acechando. 🚴‍♂️'
-}
-
-// ==============================
-//  CABECERA DE SECCIÓN
-// ==============================
-function SectionHeader({ title, subtitle, collapsed, onToggle }) {
-  return (
-    <button type="button" onClick={onToggle} className="w-full text-left group" aria-expanded={!collapsed}>
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{title}</h2>
-          {subtitle && <p className="text-sm text-slate-600 dark:text-slate-400">{subtitle}</p>}
-          <div className="mt-3 h-1 rounded-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-500 opacity-90" />
-        </div>
-        <div className={[
-          'shrink-0 rounded-xl border px-2.5 py-2 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 transition-transform',
-          collapsed ? 'rotate-0' : 'rotate-180',
-        ].join(' ')}>
-          <ChevronDown className="w-5 h-5" />
-        </div>
-      </div>
-    </button>
-  )
 }
 
 // StatDuo: Top 2 con “chip + barras” y medallón de valor.
@@ -177,6 +158,7 @@ function StatDuo({ rows, type = 'count', variant = 'luminous' }) {
 //  APP
 // ==============================
 export default function App() {
+  const location = useLocation()
   // Datos
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
@@ -199,6 +181,11 @@ export default function App() {
   const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
   const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
   const [collapsedRules, setCollapsedRules] = useState(false) // Normativa
+
+  const [activePath, setActivePath] = useState(location.pathname || '/')
+  useEffect(() => {
+    setActivePath(location.pathname || '/')
+  }, [location.pathname])
 
   // Móvil (animación campeón)
   const [isMobile, setIsMobile] = useState(false)
@@ -495,27 +482,38 @@ export default function App() {
   }, [participants, penalties])
 
   // ==============================
-  //  RENDER
+  //  HOME
   // ==============================
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
-      {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
-            <div className="mt-3 gradient-bar" />
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pb-4 flex items-center justify-end gap-3">
-          <ConfettiButton>Modo fiesta</ConfettiButton>
-          <ThemeToggle />
-        </div>
-      </header>
+  // Componente para los enlaces de navegación
+function NavigationLink({ to, icon, label, activePath, onActivate }) {
+  const normalizedTo = to === '' ? '/' : to
+  const isActive = activePath === normalizedTo
 
-      {/* Main */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+  function handleClick(){
+    if(onActivate){ onActivate(normalizedTo) }
+  }
+
+  return (
+    <Link
+      to={normalizedTo}
+      onClick={handleClick}
+      className={[
+        'relative flex flex-1 min-w-0 items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg transition-all font-medium text-center',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500',
+        isActive
+          ? 'bg-gradient-to-br from-white to-slate-100 text-indigo-600 shadow-sm border border-indigo-200/40 dark:from-indigo-900/60 dark:to-cyan-900/40 dark:text-indigo-300 dark:border-indigo-500/30'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white/90'
+      ].join(' ')}
+    >
+      {icon}
+      <span>{label}</span>
+    </Link>
+  )
+}
+
+function HomePage() {
+    return (
+      <>
         <KonamiEasterEgg />
 
         {/* Galería de la Liga (Carrusel opcional) */}
@@ -1081,30 +1079,7 @@ export default function App() {
               </AnimatePresence>
             </section>
 
-            {/* Normativa */}
-            <section>
-              <SectionHeader
-                title="Normativa"
-                subtitle="Reglamento oficial de la competición"
-                collapsed={collapsedRules}
-                onToggle={() => setCollapsedRules(v => !v)}
-              />
-              <AnimatePresence initial={false}>
-                {!collapsedRules && (
-                  <motion.div
-                    key="rules-body"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-4"
-                  >
-                    {/* Pasa aquí la URL pública del PDF si quieres mostrar el botón de descarga */}
-                    <Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL /* o undefined */} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </section>
+            {/* Bloque de Normativa eliminado de la Home */}
 
             {/* Lightbox foto */}
             {lightboxUrl && (
@@ -1230,6 +1205,51 @@ export default function App() {
             )}
           </>
         )}
+      </>
+    )
+  }
+
+  // ==============================
+  //  RENDER
+  // ==============================
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Logo y título */}
+            <div className="flex-shrink-0">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
+              <div className="mt-2 sm:mt-3 gradient-bar" />
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4 sm:flex-1 sm:min-w-0">
+              {/* Enlaces de navegación */}
+              <nav className="flex-1 min-w-0 flex items-center gap-3 text-sm py-1.5 px-4 sm:px-5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
+                <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" activePath={activePath} onActivate={setActivePath} />
+                <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" activePath={activePath} onActivate={setActivePath} />
+                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" activePath={activePath} onActivate={setActivePath} />
+              </nav>
+
+              {/* Controles */}
+              <div className="flex items-center gap-2 shrink-0 justify-end">
+                <ConfettiButton>Modo fiesta</ConfettiButton>
+                <ThemeToggle />
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/rules" element={<Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL} />} />
+          <Route path="/stats" element={<Stats />} />
+        </Routes>
       </main>
 
       {/* Footer */}
