@@ -158,6 +158,7 @@ function StatDuo({ rows, type = 'count', variant = 'luminous' }) {
 //  APP
 // ==============================
 export default function App() {
+  const location = useLocation()
   // Datos
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
@@ -180,6 +181,11 @@ export default function App() {
   const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
   const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
   const [collapsedRules, setCollapsedRules] = useState(false) // Normativa
+
+  const [activePath, setActivePath] = useState(location.pathname || '/')
+  useEffect(() => {
+    setActivePath(location.pathname || '/')
+  }, [location.pathname])
 
   // Móvil (animación campeón)
   const [isMobile, setIsMobile] = useState(false)
@@ -479,18 +485,24 @@ export default function App() {
   //  HOME
   // ==============================
   // Componente para los enlaces de navegación
-function NavigationLink({ to, icon, label }) {
-  const location = useLocation()
-  const isActive = location.pathname === to || (to === '/' && location.pathname === '')
+function NavigationLink({ to, icon, label, activePath, onActivate }) {
+  const normalizedTo = to === '' ? '/' : to
+  const isActive = activePath === normalizedTo
+
+  function handleClick(){
+    if(onActivate){ onActivate(normalizedTo) }
+  }
 
   return (
     <Link
-      to={to}
+      to={normalizedTo}
+      onClick={handleClick}
       className={[
-        'relative flex flex-1 min-w-0 items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg transition-all font-medium text-center',
+        'relative flex flex-1 min-w-0 items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg transition-all font-medium text-center',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500',
         isActive
-          ? 'bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 dark:from-indigo-500/20 dark:to-cyan-500/20 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200/30 dark:border-indigo-500/20'
-          : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/5'
+          ? 'bg-gradient-to-br from-white to-slate-100 text-indigo-600 shadow-sm border border-indigo-200/40 dark:from-indigo-900/60 dark:to-cyan-900/40 dark:text-indigo-300 dark:border-indigo-500/30'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white/90'
       ].join(' ')}
     >
       {icon}
@@ -1215,10 +1227,10 @@ function HomePage() {
 
             <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4 sm:flex-1 sm:min-w-0">
               {/* Enlaces de navegación */}
-              <nav className="flex-1 min-w-0 flex items-center gap-2 text-sm p-1.5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
-                <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" />
-                <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" />
-                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" />
+              <nav className="flex-1 min-w-0 flex items-center gap-3 text-sm py-1.5 px-4 sm:px-5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
+                <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" activePath={activePath} onActivate={setActivePath} />
+                <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" activePath={activePath} onActivate={setActivePath} />
+                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" activePath={activePath} onActivate={setActivePath} />
               </nav>
 
               {/* Controles */}
