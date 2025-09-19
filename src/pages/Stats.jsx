@@ -208,7 +208,7 @@ export default function Stats(){
 
   const moves = useMemo(() => {
     // mayores subidas/bajadas en el ranking acumulado entre jornadas consecutivas
-    const riseList = [] // { pid, name, delta, fromGw, toGw }
+    const riseList = [] // { pid, name, delta, fromGw, toGw, fromRank, toRank }
     const dropList = []
     for(const p of participants){
       const arr = accumulatedRanksByPid.get(p.id) || []
@@ -217,8 +217,8 @@ export default function Stats(){
         const curr = arr[gw]
         if(!prev || !curr) continue
         const delta = prev - curr // positivo = mejora
-        if(delta>0) riseList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1 })
-        if(delta<0) dropList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1 })
+        if(delta>0) riseList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1, fromRank:prev, toRank:curr })
+        if(delta<0) dropList.push({ pid:p.id, name:p.name, delta, fromGw:gw, toGw:gw+1, fromRank:prev, toRank:curr })
       }
     }
     riseList.sort((a,b)=> b.delta - a.delta)
@@ -759,13 +759,14 @@ export default function Stats(){
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Más jornadas líder */}
-                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="glass rounded-2xl h-full p-4 border border-slate-200 dark:border-slate-700 flex flex-col">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                     <Trophy className="w-4 h-4 text-amber-600"/> Más jornadas líder
                   </div>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-2 flex-1">
                     {participants
                       .map(p => ({ id:p.id, name:p.name, count: leadersCount.get(p.id)||0 }))
+                      .filter(r => r.count > 0)
                       .sort((a,b)=> b.count - a.count)
                       .slice(0,5)
                       .map((r,idx)=> (
@@ -778,30 +779,34 @@ export default function Stats(){
                 </div>
 
                 {/* Mayor subida */}
-                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="glass rounded-2xl h-full p-4 border border-slate-200 dark:border-slate-700 flex flex-col">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                     <TrendingUp className="w-4 h-4 text-emerald-600"/> Mayor subida (entre jornadas)
                   </div>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-2 flex-1">
                     {moves.riseTop.map((r,idx)=> (
                       <div key={idx} className="flex items-center justify-between">
                         <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
-                        <Badge className="bg-emerald-600 text-white">+{r.delta}</Badge>
+                        <Badge className="bg-emerald-600 text-white">
+                          {`+${r.delta}`} ({formatOrdinal(r.fromRank)} → {formatOrdinal(r.toRank)})
+                        </Badge>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* Mayor bajada */}
-                <div className="glass rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="glass rounded-2xl h-full p-4 border border-slate-200 dark:border-slate-700 flex flex-col">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                     <TrendingDown className="w-4 h-4 text-rose-600"/> Mayor bajada (entre jornadas)
                   </div>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-2 flex-1">
                     {moves.dropTop.map((r,idx)=> (
                       <div key={idx} className="flex items-center justify-between">
                         <span className="text-sm text-slate-800 dark:text-slate-200">{idx+1}. {r.name} (J{r.fromGw}→J{r.toGw})</span>
-                        <Badge className="bg-rose-600 text-white">{r.delta}</Badge>
+                        <Badge className="bg-rose-600 text-white">
+                          {`${r.delta}`} ({formatOrdinal(r.fromRank)} → {formatOrdinal(r.toRank)})
+                        </Badge>
                       </div>
                     ))}
                   </div>
