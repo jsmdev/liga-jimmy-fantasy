@@ -34,6 +34,20 @@ export default function Stats(){
   const [showAdjustedChart, setShowAdjustedChart] = useState(true)
 
   const [selectedPid, setSelectedPid] = useState('')
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < 640
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === 'undefined') return
+      setIsMobileViewport(window.innerWidth < 640)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     async function load(){
@@ -270,15 +284,23 @@ export default function Stats(){
   }, [selectedPid, chartRanksByPid, jornadas])
 
   // SVG simple (sin libs) con eje Y invertido (1 arriba)
-  function LineChartPositions({ data }){
+  function LineChartPositions({ data, isMobile }){
     if(!data?.length) return <div className="text-sm text-slate-500 dark:text-slate-400">Sin datos</div>
-    const W=720, H=260, P=28
+    const W = isMobile ? 360 : 720
+    const H = isMobile ? 340 : 260
+    const P = 28
     const xs = (i)=> P + (i)*( (W-2*P) / Math.max(1,(data.length-1)) )
     const maxRank = Math.max(...data.map(d=> d.rank||0).filter(Boolean)) || 1
     const ys = (r)=> P + (H-2*P) * ((r-1)/Math.max(1,(maxRank-1)))
     const pts = data.map((d,i)=> d.rank? `${xs(i)},${ys(d.rank)}` : null).filter(Boolean)
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[260px]">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height="100%"
+        preserveAspectRatio={isMobile ? 'none' : 'xMidYMid meet'}
+        className={`w-full ${isMobile ? 'h-[340px]' : 'h-[260px]'}`}
+      >
         <rect x="0" y="0" width={W} height={H} className="fill-slate-50 dark:fill-slate-900"/>
         {/* grid horizontal */}
         {Array.from({length: maxRank}, (_,i)=>i+1).map(r=> (
@@ -286,34 +308,38 @@ export default function Stats(){
         ))}
         {/* path */}
         {pts.length>1 && (
-          <polyline points={pts.join(' ')} fill="none" strokeWidth="2.5" className="stroke-emerald-600 dark:stroke-emerald-400"/>
+          <polyline points={pts.join(' ')} fill="none" strokeWidth={isMobile ? 4 : 2.5} className="stroke-emerald-600 dark:stroke-emerald-400"/>
         )}
         {/* puntos */}
         {data.map((d,i)=> d.rank && (
           <g key={i}>
-            <circle cx={xs(i)} cy={ys(d.rank)} r="4" className="fill-emerald-600 dark:fill-emerald-400"/>
+            <circle cx={xs(i)} cy={ys(d.rank)} r={isMobile ? 6 : 4} className="fill-emerald-600 dark:fill-emerald-400"/>
             <text
               x={xs(i)}
-              y={ys(d.rank)-10}
+              y={ys(d.rank) - (isMobile ? 16 : 10)}
               textAnchor="middle"
-              className="fill-slate-700 dark:fill-slate-300 text-[16px] sm:text-[15px] md:text-[14px] lg:text-[13px] font-semibold"
+              className="fill-slate-700 dark:fill-slate-300 text-[18px] sm:text-[16px] md:text-[15px] lg:text-[14px] font-semibold"
             >
               {formatOrdinal(d.rank)}
             </text>
           </g>
         ))}
         {/* eje X */}
-        {data.map((d,i)=> (
-          <text
-            key={i}
-            x={xs(i)}
-            y={H-6}
-            textAnchor="middle"
-            className="fill-slate-600 dark:fill-slate-400 text-[15px] sm:text-[14px] md:text-[13px] lg:text-[12px] font-medium"
-          >
-            J{d.gw}
-          </text>
-        ))}
+        {data.map((d,i)=> {
+          const showLabel = !isMobile || data.length <= 12 || i % 2 === 0
+          if(!showLabel) return null
+          return (
+            <text
+              key={i}
+              x={xs(i)}
+              y={H-8}
+              textAnchor="middle"
+              className="fill-slate-600 dark:fill-slate-400 text-[14px] sm:text-[13px] md:text-[12px] font-medium"
+            >
+              J{d.gw}
+            </text>
+          )
+        })}
       </svg>
     )
   }
@@ -656,7 +682,7 @@ export default function Stats(){
                   />
                 </div>
                 <div className="md:col-span-2" id="chart-positions">
-                  <LineChartPositions data={chartData} />
+                  <LineChartPositions data={chartData} isMobile={isMobileViewport} />
                 </div>
               </div>
             </motion.div>
