@@ -2,7 +2,6 @@
 //  APP PRINCIPAL – Liga Jimmy Fantasy
 // ==============================
 import React, { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import {
   Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
@@ -24,6 +23,7 @@ import { Routes, Route, Link, useLocation } from "react-router-dom"
 import Rules from "./Rules"
 import Stats from "./pages/Stats"
 import SectionHeader from '@/components/SectionHeader.jsx'
+import { supabase } from '@/lib/supabaseClient.js'
 
 // ==============================
 //  CONSTANTES
@@ -32,8 +32,6 @@ const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 // Mostrar/ocultar carrusel globalmente
 const SHOW_CAROUSEL = true
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 // ==============================
 //  HELPERS

@@ -2,7 +2,6 @@
 // File: src/pages/Stats.jsx
 // ==============================
 import React, { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart2, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare } from 'lucide-react'
 
@@ -10,8 +9,7 @@ import SectionHeader from '@/components/SectionHeader.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
 import Select from '@/components/ui/Select.jsx'
 import Badge from '@/components/ui/Badge.jsx'
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
+import { supabase } from '@/lib/supabaseClient.js'
 
 // Helpers locales (idénticos a Home para coherencia visual)
 function signTextClass(n){ if(n>0) return 'text-emerald-700 dark:text-emerald-400'; if(n<0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100'}
