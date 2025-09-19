@@ -21,13 +21,16 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={()=> setTheme(t=> t==='dark'?'light':'dark')}
-      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-white hover:bg-slate-100 border border-slate-300 text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 dark:text-slate-100 transition"
+      className={[
+        'inline-flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 hover:bg-white/90 dark:bg-slate-800/70 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm transition-colors',
+        'h-11 w-11 p-2 sm:w-auto sm:px-4 sm:gap-2'
+      ].join(' ')}
       title={isDark ? 'Cambiar a claro' : 'Cambiar a oscuro'}
       aria-label="Cambiar tema"
       type="button"
     >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-      {isDark ? 'Claro' : 'Oscuro'}
+      {isDark ? <Sun className="w-5 h-5" aria-hidden="true" /> : <Moon className="w-5 h-5" aria-hidden="true" />}
+      <span className="hidden sm:inline font-medium">{isDark ? 'Claro' : 'Oscuro'}</span>
     </button>
   )
 }

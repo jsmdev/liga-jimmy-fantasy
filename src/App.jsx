@@ -497,16 +497,18 @@ function NavigationLink({ to, icon, label, activePath, onActivate }) {
     <Link
       to={normalizedTo}
       onClick={handleClick}
+      aria-label={label}
       className={[
-        'relative flex flex-1 min-w-0 items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg transition-all font-medium text-center',
+        'relative flex flex-1 items-center justify-center rounded-lg transition-all font-medium text-center whitespace-nowrap',
+        'h-11 px-3 text-xs gap-0 min-w-0 sm:h-auto sm:px-4 sm:py-2.5 sm:text-sm sm:gap-2',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500',
         isActive
           ? 'bg-gradient-to-br from-white to-slate-100 text-indigo-600 shadow-sm border border-indigo-200/40 dark:from-indigo-900/60 dark:to-cyan-900/40 dark:text-indigo-300 dark:border-indigo-500/30'
           : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white/90'
       ].join(' ')}
     >
-      {icon}
-      <span>{label}</span>
+      <span className="flex items-center justify-center" aria-hidden="true">{icon}</span>
+      <span className="hidden sm:inline ml-1">{label}</span>
     </Link>
   )
 }
@@ -1215,31 +1217,32 @@ function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-900/80 backdrop-blur py-1 md:py-3">
+        <div className="mx-auto flex max-w-screen-xl flex-col gap-2 px-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
             {/* Logo y título */}
-            <div className="flex-shrink-0">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight gradient-title">{TITLE}</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
-              <div className="mt-2 sm:mt-3 gradient-bar" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold tracking-tight gradient-title leading-tight sm:text-3xl">{TITLE}</h1>
+              <p className="hidden sm:block text-sm text-slate-600 dark:text-slate-400">{SUBTITLE}</p>
+              <div className="mt-1 hidden sm:block gradient-bar" />
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-4 sm:flex-1 sm:min-w-0">
-              {/* Enlaces de navegación */}
-              <nav className="flex-1 min-w-0 flex items-center gap-3 text-sm py-1.5 px-4 sm:px-5 bg-gradient-to-r from-slate-100/90 to-slate-50/80 dark:from-slate-800/90 dark:to-slate-800/60 rounded-xl shadow-sm">
-                <NavigationLink to="/" icon={<Home className="w-4 h-4" />} label="Inicio" activePath={activePath} onActivate={setActivePath} />
-                <NavigationLink to="/stats" icon={<PieChart className="w-4 h-4" />} label="Stats" activePath={activePath} onActivate={setActivePath} />
-                <NavigationLink to="/rules" icon={<Book className="w-4 h-4" />} label="Reglas" activePath={activePath} onActivate={setActivePath} />
-              </nav>
-
-              {/* Controles */}
-              <div className="flex items-center gap-2 shrink-0 justify-end">
-                <ConfettiButton>Modo fiesta</ConfettiButton>
-                <ThemeToggle />
-              </div>
+            {/* Controles */}
+            <div className="flex shrink-0 items-center gap-2">
+              <ConfettiButton>Modo fiesta</ConfettiButton>
+              <ThemeToggle />
             </div>
           </div>
+
+          {/* Barra de navegación */}
+          <nav
+            className="no-scrollbar mt-1 flex w-full flex-nowrap items-center justify-center gap-2 overflow-x-auto rounded-xl border border-slate-200/70 bg-gradient-to-r from-slate-100/90 to-slate-50/80 px-2 text-xs shadow-sm dark:border-slate-800/70 dark:from-slate-800/90 dark:to-slate-800/60 h-11 sm:mt-2 sm:h-auto sm:justify-start sm:px-5 sm:py-1.5 sm:text-sm sm:gap-3"
+            aria-label="Secciones principales"
+          >
+            <NavigationLink to="/" icon={<Home className="h-5 w-5" />} label="Inicio" activePath={activePath} onActivate={setActivePath} />
+            <NavigationLink to="/stats" icon={<PieChart className="h-5 w-5" />} label="Stats" activePath={activePath} onActivate={setActivePath} />
+            <NavigationLink to="/rules" icon={<Book className="h-5 w-5" />} label="Reglas" activePath={activePath} onActivate={setActivePath} />
+          </nav>
         </div>
       </header>
 
