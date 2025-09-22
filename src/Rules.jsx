@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { BookOpen, Download, Printer, ListOrdered } from 'lucide-react'
 
-const RULES_MD_URL = '/rules.md' // se sirve desde /public
+import rulesMarkdown from '@/content/rules.md?raw'
 
 // ---------------- Utils ----------------
 function slugify(str = '') {
@@ -42,19 +42,11 @@ function extractHeadings(md) {
 
 // -------------- Componente --------------
 export default function Rules({ pdfUrl }) {
-  const [md, setMd] = useState('')
   const [activeId, setActiveId] = useState(null)
+  const md = rulesMarkdown
 
   const containerRef = useRef(null)
   const headingsMapRef = useRef({}) // { id: HTMLElement }
-
-  // Carga del markdown
-  useEffect(() => {
-    fetch(RULES_MD_URL)
-      .then(r => r.text())
-      .then(setMd)
-      .catch(() => setMd('# Normativa\nNo se pudo cargar el reglamento.'))
-  }, [])
 
   // Botón de descarga: se muestra solo si se proporciona pdfUrl
 

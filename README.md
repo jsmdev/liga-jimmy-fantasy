@@ -61,7 +61,7 @@ flowchart LR
     V1["Tabla: participants"]
     V2["Tabla: penalties"]
     V3["Tabla: carousel_photos"]
-    VW1["Vista: v_ranking_current"]
+    VW1["Vista: v_ranking_official"]
     VW2["Vista: v_stats_naughty_day"]
   end
 
@@ -104,8 +104,8 @@ sequenceDiagram
   PG-->>S: rows
   S-->>A: photos (mapeadas)
 
-  A->>S: from('v_ranking_current').select(...).order('rank asc')
-  S->>PG: SELECT v_ranking_current...
+  A->>S: from('v_ranking_official').select(...).order('rank asc')
+  S->>PG: SELECT v_ranking_official...
   PG-->>S: rows
   S-->>A: rankingRows
 

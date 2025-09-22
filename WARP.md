@@ -58,7 +58,7 @@ src/
   - `participants` - Miembros de la liga con fotos e información del equipo
   - `penalties` - Bonificaciones y sanciones con cantidades y razones
   - `carousel_photos` - Imágenes de la galería para el carrusel
-  - `v_ranking_current` - Vista SQL para la clasificación actual
+  - `v_ranking_official` - Vista SQL para la clasificación oficial
   - `v_stats_naughty_day` - Vista SQL para estadísticas
 
 #### Patrones de componentes UI
@@ -122,7 +122,7 @@ Todo el texto dirigido al usuario, comentarios y contenido están en español. E
 - `vercel.json` - Configuración de despliegue en Vercel
 
 ### Archivos importantes
-- `public/rules.md` - Archivo Markdown que contiene las reglas de la liga
+- `src/content/rules.md` - Archivo Markdown que contiene las reglas de la liga
 - `src/Rules.jsx` - Componente que renderiza el markdown de reglas
 - `.env` - Variables de entorno (no comprometido en git)
 
@@ -134,7 +134,7 @@ La aplicación se integra intensamente con Supabase para:
 - **Autenticación** (aunque actualmente utiliza acceso anónimo)
 
 Patrones clave de base de datos:
-- Uso de vistas SQL (`v_ranking_current`, `v_stats_naughty_day`) para consultas complejas
+- Uso de vistas SQL (`v_ranking_official`, `v_stats_naughty_day`) para consultas complejas
 - Almacenar URLs de fotos en lugar de blobs
 - Mantener relaciones de datos a través de claves foráneas
 
