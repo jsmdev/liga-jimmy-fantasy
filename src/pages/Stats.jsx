@@ -20,7 +20,8 @@ export default function Stats(){
   const [loading, setLoading] = useState(true)
   const [participants, setParticipants] = useState([])
   const [byGw, setByGw] = useState([]) // filas: { gw, participant_id, name, rank }
-  const [current, setCurrent] = useState([]) // filas: { participant_id, name, team_name, external_total, penalty_total, score, rank }
+  const [officialRanking, setOfficialRanking] = useState([])
+  const [lastPlayedJornada, setLastPlayedJornada] = useState(null)
 
   // UI: colapsables
   const [cHistoric, setCHistoric] = useState(false)
@@ -72,34 +73,47 @@ export default function Stats(){
           .order('jornada', { ascending: true })
 
         // Ranking actual (con externos, ajuste y total)
-        const { data: curr } = await supabase
-          .from('v_ranking_current')
-          .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
+        const { data: official } = await supabase
+          .from('v_ranking_official')
+          .select('participant_id,name,team_name,external_total,adjustment_total,score,rank,last_jornada,last_played_on')
           .order('rank', { ascending: true })
 
         setParticipants(parts || [])
         setByGw(times || [])
-        setCurrent(curr || [])
+        setOfficialRanking(official || [])
+        const lastJ = (official || []).reduce((max, row) => {
+          const j = Number(row.last_jornada) || 0
+          return j > max ? j : max
+        }, 0)
+        setLastPlayedJornada(lastJ || null)
         if((parts||[]).length && !selectedPid){ setSelectedPid(parts[0].id) }
       } catch(e){
         console.error('Stats load()', e)
-        setParticipants([]); setByGw([]); setCurrent([])
+        setParticipants([]); setByGw([]); setOfficialRanking([]); setLastPlayedJornada(null)
       } finally{ setLoading(false) }
     }
     load()
   }, [])
 
   // ======= Derivados =======
+  const byGwFiltered = useMemo(() => {
+    if (!lastPlayedJornada) return byGw || []
+    return (byGw || []).filter(r => {
+      const j = Number(r.jornada) || 0
+      return j && j <= lastPlayedJornada
+    })
+  }, [byGw, lastPlayedJornada])
+
   const jornadas = useMemo(() => {
-    const maxGw = (byGw||[]).reduce((m, r) => Math.max(m, r.jornada||0), 0)
+    const maxGw = (byGwFiltered||[]).reduce((m, r) => Math.max(m, r.jornada||0), 0)
     return Array.from({length: maxGw}, (_,i)=> i+1)
-  }, [byGw])
+  }, [byGwFiltered])
 
   // Ranking por jornada individual (depende de showAdjustedHistoric)
   const ranksByPid = useMemo(() => {
     const rankMap = new Map()
     const byJornada = new Map()
-    for(const r of (byGw||[])){
+    for(const r of (byGwFiltered||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
       byJornada.get(r.jornada).push({
         participant_id: r.participant_id,
@@ -125,14 +139,14 @@ export default function Stats(){
       })
     }
     return rankMap
-  }, [byGw, showAdjustedHistoric])
+  }, [byGwFiltered, showAdjustedHistoric])
 
   // Ranking por puntos acumulados (depende de showAdjustedAccum)
   const accumulatedRanksByPid = useMemo(() => {
     const accRankMap = new Map()
     const accumulatedPoints = new Map()
     const byJornada = new Map()
-    for(const r of (byGw||[])){
+    for(const r of (byGwFiltered||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
       byJornada.get(r.jornada).push({
         participant_id: r.participant_id,
@@ -174,7 +188,7 @@ export default function Stats(){
       })
     }
     return accRankMap
-  }, [byGw, showAdjustedHistoric])
+  }, [byGwFiltered, showAdjustedHistoric])
 
   const leadersCount = useMemo(() => {
     // cuenta jornadas lideradas en la clasificación acumulada
@@ -240,7 +254,7 @@ export default function Stats(){
     const rankMap = new Map()
     const accumulatedPoints = new Map()
     const byJornada = new Map()
-    for(const r of (byGw||[])){
+    for(const r of (byGwFiltered||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
       byJornada.get(r.jornada).push({
         participant_id: r.participant_id,
@@ -273,7 +287,7 @@ export default function Stats(){
       })
     }
     return rankMap
-  }, [byGw, showAdjustedChart])
+  }, [byGwFiltered, showAdjustedChart])
 
   const chartData = useMemo(() => {
     if(!selectedPid) return []
@@ -344,9 +358,37 @@ export default function Stats(){
 
   // Máxima jornada con datos para atenuar columnas futuras sin valores
   const maxJornadaWithData = useMemo(() => {
-    const arr = (byGw || []).map(r => Number(r.jornada) || 0)
+    const arr = (byGwFiltered || []).map(r => Number(r.jornada) || 0)
     return arr.length ? Math.max(...arr) : 0
-  }, [byGw])
+  }, [byGwFiltered])
+
+  const officialRankingRows = useMemo(() => {
+    if (!officialRanking?.length) return []
+    const base = officialRanking.map(row => ({
+      participant_id: row.participant_id,
+      name: row.name,
+      team_name: row.team_name,
+      external_total: Number(row.external_total) || 0,
+      adjustment_total: Number(row.adjustment_total) || 0,
+      score: Number(row.score) || 0,
+      original_rank: Number(row.rank) || 0,
+    }))
+    const sorted = base.slice().sort((a, b) => {
+      if (showAdjustedHistoric) {
+        if (b.score !== a.score) return b.score - a.score
+      } else {
+        if (b.external_total !== a.external_total) return b.external_total - a.external_total
+      }
+      if (b.external_total !== a.external_total) return b.external_total - a.external_total
+      if (a.adjustment_total !== b.adjustment_total) return b.adjustment_total - a.adjustment_total
+      return a.name.localeCompare(b.name)
+    })
+    return sorted.map((row, idx) => ({
+      ...row,
+      display_rank: idx + 1,
+      total_points: showAdjustedHistoric ? row.score : row.external_total,
+    }))
+  }, [officialRanking, showAdjustedHistoric])
 
   // ======= RENDER =======
   if(loading){
@@ -587,6 +629,83 @@ export default function Stats(){
                       </tbody>
                     </table>
                   </div>
+                </div>
+                <div className="mt-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Clasificación oficial {lastPlayedJornada ? `hasta la jornada ${lastPlayedJornada}` : ''}
+                    </h4>
+                    {lastPlayedJornada ? (
+                      <Badge className="text-xs border border-slate-300 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 text-slate-600 dark:text-slate-300">
+                        Última jornada jugada: J{lastPlayedJornada}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {officialRankingRows.length ? (
+                    <div className="mt-3 glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
+                          <thead className="bg-slate-50 dark:bg-slate-900/40">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-600 dark:text-slate-300 w-24">Posición</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-600 dark:text-slate-300">Participante</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-600 dark:text-slate-300">Equipo</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-600 dark:text-slate-300">Fantasy</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-600 dark:text-slate-300">Ajuste</th>
+                              <th className="px-3 py-2 text-right font-semibold text-slate-600 dark:text-slate-300">
+                                {showAdjustedHistoric ? 'Total (ajustado)' : 'Total (sin ajuste)'}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {officialRankingRows.map(row => (
+                              <tr key={row.participant_id} className="border-t border-slate-200 dark:border-slate-700">
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={[
+                                      'inline-flex min-w-[3rem] items-center justify-center rounded-md border px-2 py-1 text-xs font-semibold',
+                                      rankCellClass(row.display_rank, officialRankingRows.length)
+                                    ].join(' ')}
+                                  >
+                                    {formatOrdinal(row.display_rank)}
+                                  </span>
+                                  {!showAdjustedHistoric && row.display_rank !== row.original_rank ? (
+                                    <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                      Oficial: {formatOrdinal(row.original_rank)}
+                                    </div>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="font-medium text-slate-900 dark:text-slate-100">{row.name}</div>
+                                </td>
+                                <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{row.team_name || 'Sin equipo'}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={[
+                                    'font-semibold',
+                                    signTextClass(row.external_total)
+                                  ].join(' ')}>{fmtSigned(row.external_total)}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={[
+                                    'font-semibold',
+                                    signTextClass(row.adjustment_total)
+                                  ].join(' ')}>{fmtSigned(row.adjustment_total)}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={[
+                                    'font-semibold',
+                                    signTextClass(row.total_points)
+                                  ].join(' ')}>{fmtSigned(row.total_points)}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">Sin datos disponibles.</div>
+                  )}
                 </div>
               </div>
             </motion.div>

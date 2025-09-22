@@ -223,8 +223,8 @@ export default function App() {
       }
 
       const { data: rank } = await supabase
-        .from('v_ranking_current')
-        .select('participant_id,name,team_name,external_total,penalty_total,score,rank')
+        .from('v_ranking_official')
+        .select('participant_id,name,team_name,external_total,adjustment_total,score,rank,last_jornada,last_played_on')
         .order('rank', { ascending: true })
 
       // Día(s) más travieso(s)
@@ -312,7 +312,7 @@ export default function App() {
         team_name: row.team_name,
         photo_url: p?.photo_url || '',
         ext: Number(row.external_total) || 0,
-        pen: Number(row.penalty_total) || 0,
+        pen: Number(row.adjustment_total) || 0,
         score: Number(row.score) || 0,
         rank: Number(row.rank) || 0,
       }
