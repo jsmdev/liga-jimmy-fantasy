@@ -1077,8 +1077,8 @@ function HomePage() {
               ================================= */}
             <section>
               <SectionHeader
-                title="Estadísticas"
-                subtitle="Top 2 en todas las categorías (empates incluidos)"
+                title="Fair Play y Caos"
+                subtitle="Bonificaciones para los ejemplares, sanciones para los truhanes"
                 collapsed={collapsedStats}
                 onToggle={() => setCollapsedStats(v => !v)}
               />
