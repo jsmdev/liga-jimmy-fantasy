@@ -1,13 +1,13 @@
 // ==============================
 //  APP PRINCIPAL – Liga Jimmy Fantasy
 // ==============================
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
   AlertTriangle, ThumbsUp, Calendar, Flame,
   Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX,
-  Home, Book, PieChart
+  Home, Book, PieChart, X
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -266,6 +266,9 @@ export default function App() {
 
   // Varios
   const [lightboxUrl, setLightboxUrl] = useState(null)
+  const [lightboxDragOffset, setLightboxDragOffset] = useState(0)
+  const [lightboxDragging, setLightboxDragging] = useState(false)
+  const lightboxDragRef = useRef({ active: false, startY: 0, pointerId: null })
   const [carousel, setCarousel] = useState([])
   const [rankingRows, setRankingRows] = useState([])
   const [scores, setScores] = useState([])
@@ -512,6 +515,70 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [lightboxUrl])
+
+  useEffect(() => {
+    if (!lightboxUrl) {
+      setLightboxDragOffset(0)
+      setLightboxDragging(false)
+      lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
+    }
+  }, [lightboxUrl])
+
+  const handleLightboxClose = useCallback(() => {
+    setLightboxUrl(null)
+  }, [])
+
+  const handleLightboxPointerDown = useCallback((event) => {
+    if (!lightboxUrl) return
+    event.stopPropagation()
+    const pointerId = event.pointerId
+    lightboxDragRef.current = { active: true, startY: event.clientY, pointerId }
+    setLightboxDragOffset(0)
+    setLightboxDragging(false)
+    try {
+      event.currentTarget.setPointerCapture(pointerId)
+    } catch (err) {
+      // algunos navegadores pueden lanzar si no soportan pointer capture
+    }
+  }, [lightboxUrl])
+
+  const handleLightboxPointerMove = useCallback((event) => {
+    if (!lightboxUrl) return
+    const drag = lightboxDragRef.current
+    if (!drag.active) return
+    const delta = event.clientY - drag.startY
+    if (delta > 0) {
+      setLightboxDragging(true)
+      setLightboxDragOffset(delta)
+    } else {
+      setLightboxDragOffset(0)
+    }
+  }, [lightboxUrl])
+
+  const finishLightboxDrag = useCallback((event, cancelled = false) => {
+    const drag = lightboxDragRef.current
+    if (!drag.active) return
+    lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch (err) {}
+    const delta = event.clientY - drag.startY
+    if (!cancelled && delta > 120) {
+      handleLightboxClose()
+    } else {
+      setLightboxDragOffset(0)
+      setLightboxDragging(false)
+    }
+  }, [handleLightboxClose])
+
+  const handleLightboxPointerUp = useCallback((event) => {
+    event.stopPropagation()
+    finishLightboxDrag(event, false)
+  }, [finishLightboxDrag])
+
+  const handleLightboxPointerCancel = useCallback((event) => {
+    finishLightboxDrag(event, true)
+  }, [finishLightboxDrag])
 
   // Podio del Caos: Top 3 por suma NEGATIVA total (más negativo primero)
   const worstNegPodium = useMemo(() => {
@@ -1314,8 +1381,45 @@ function HomePage() {
 
             {/* Lightbox foto */}
             {lightboxUrl && (
-              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setLightboxUrl(null)}>
-                <img src={lightboxUrl} alt="Foto ampliada" className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-lg" />
+              <div
+                className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center px-4"
+                onClick={handleLightboxClose}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  className="relative w-full max-w-4xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div
+                    className="relative rounded-2xl overflow-hidden bg-slate-900/70"
+                    onPointerDown={handleLightboxPointerDown}
+                    onPointerMove={handleLightboxPointerMove}
+                    onPointerUp={handleLightboxPointerUp}
+                    onPointerCancel={handleLightboxPointerCancel}
+                    style={{
+                      transform: `translateY(${lightboxDragOffset}px)`,
+                      transition: lightboxDragging ? 'none' : 'transform 0.2s ease-out',
+                      touchAction: 'none'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => { event.stopPropagation(); handleLightboxClose() }}
+                      className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                      aria-label="Cerrar plantilla"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <img
+                      src={lightboxUrl}
+                      alt="Plantilla de la jornada"
+                      className="block max-h-[85vh] w-full rounded-2xl object-contain"
+                      draggable={false}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
