@@ -152,7 +152,7 @@ function StatDuo({ rows, type = 'count', variant = 'luminous' }) {
   )
 }
 
-function HistoricalPodiumPanel({ variant, rows }) {
+function HistoricalPodiumPanel({ variant, rows, onSelectRow }) {
   const isBest = variant === 'best'
   const variantTheme = isBest
     ? {
@@ -186,42 +186,62 @@ function HistoricalPodiumPanel({ variant, rows }) {
         </div>
       </div>
       <ul className="mt-4 space-y-3">
-        {rows.length ? rows.map(row => (
-          <li key={`${variant}-${row.entryId}`} className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={[
-                'w-8 h-8 shrink-0 rounded-full border flex items-center justify-center text-sm font-semibold',
-                variantTheme.badgeClass,
-              ].join(' ')}>
-                {row.position}
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                  {row.name}
+        {rows.length ? rows.map(row => {
+          const hasImage = Boolean(row.lineupImageUrl)
+          return (
+            <li key={`${variant}-${row.entryId}`}>
+              <button
+                type="button"
+                onClick={() => hasImage && onSelectRow?.(row.lineupImageUrl)}
+                disabled={!hasImage}
+                className={[
+                  'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition text-left',
+                  'border-transparent hover:border-slate-300 dark:hover:border-slate-600 hover:bg-white/60 dark:hover:bg-slate-800/40',
+                  hasImage ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-violet-400 dark:focus-visible:ring-offset-slate-900' : 'cursor-default opacity-70',
+                  'disabled:cursor-not-allowed disabled:opacity-60'
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={[
+                    'w-8 h-8 shrink-0 rounded-full border flex items-center justify-center text-sm font-semibold',
+                    variantTheme.badgeClass,
+                  ].join(' ')}>
+                    {row.position}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                      {row.name}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {row.teamName}
+                    </div>
+                    {row.jornada ? (
+                      <span className={['mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold', variantTheme.pillClass].join(' ')}>
+                        Jornada {row.jornada}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  {row.teamName}
+                <div className="text-right">
+                  <div className={['text-sm font-bold', signTextClass(row.displayValue)].join(' ')}>
+                    {fmtSigned(row.displayValue)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Fantasy: <span className="font-semibold">{fmtSigned(row.externalTotal)}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Ajuste: <span className={["font-semibold", signTextClass(row.adjustmentsTotal)].join(' ')}>{fmtSigned(row.adjustmentsTotal)}</span>
+                  </div>
+                  {!hasImage ? (
+                    <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-600">
+                      Sin imagen
+                    </div>
+                  ) : null}
                 </div>
-                {row.jornada ? (
-                  <span className={['mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold', variantTheme.pillClass].join(' ')}>
-                    Jornada {row.jornada}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={['text-sm font-bold', signTextClass(row.displayValue)].join(' ')}>
-                {fmtSigned(row.displayValue)}
-              </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Fantasy: <span className="font-semibold">{fmtSigned(row.externalTotal)}</span>
-              </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Ajuste: <span className={["font-semibold", signTextClass(row.adjustmentsTotal)].join(' ')}>{fmtSigned(row.adjustmentsTotal)}</span>
-              </div>
-            </div>
-          </li>
-        )) : (
+              </button>
+            </li>
+          )
+        }) : (
           <li className="text-sm text-slate-500 dark:text-slate-400">Sin registros suficientes.</li>
         )}
       </ul>
@@ -291,7 +311,7 @@ export default function App() {
 
       const { data: scoresData } = await supabase
         .from('scores')
-        .select('participant_id,jornada,points_external,points_adjustments')
+        .select('participant_id,jornada,points_external,points_adjustments,lineup_image_url')
         .order('jornada', { ascending: true })
 
       // Carrusel (solo si está activado)
@@ -426,6 +446,7 @@ export default function App() {
           externalTotal: external,
           adjustmentsTotal: adjustments,
           adjustedTotal: external + adjustments,
+          lineupImageUrl: score.lineup_image_url || null,
         }
       })
       .filter(row => (row.externalTotal !== 0 || row.adjustmentsTotal !== 0))
@@ -482,6 +503,15 @@ export default function App() {
       return () => { document.body.style.overflow = prev }
     }
   }, [detailParticipant])
+
+  useEffect(() => {
+    if (!lightboxUrl) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setLightboxUrl(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightboxUrl])
 
   // Podio del Caos: Top 3 por suma NEGATIVA total (más negativo primero)
   const worstNegPodium = useMemo(() => {
@@ -866,8 +896,16 @@ function HomePage() {
                         </div>
                       </div>
                       <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <HistoricalPodiumPanel variant="best" rows={historicalPodiums.best} />
-                        <HistoricalPodiumPanel variant="worst" rows={historicalPodiums.worst} />
+                        <HistoricalPodiumPanel
+                          variant="best"
+                          rows={historicalPodiums.best}
+                          onSelectRow={url => setLightboxUrl(url)}
+                        />
+                        <HistoricalPodiumPanel
+                          variant="worst"
+                          rows={historicalPodiums.worst}
+                          onSelectRow={url => setLightboxUrl(url)}
+                        />
                       </div>
                     </motion.div>
                   )}
