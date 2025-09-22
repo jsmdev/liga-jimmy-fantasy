@@ -280,6 +280,8 @@ export default function App() {
   const [lightboxIsPanning, setLightboxIsPanning] = useState(false)
   const lightboxPanRef = useRef({ active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } })
   const lightboxImageRef = useRef(null)
+  const lightboxPinchRef = useRef({ active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } })
+  const lightboxPointersRef = useRef(new Map())
   const [carousel, setCarousel] = useState([])
   const [rankingRows, setRankingRows] = useState([])
   const [scores, setScores] = useState([])
@@ -537,6 +539,8 @@ export default function App() {
       setLightboxPan({ x: 0, y: 0 })
       setLightboxIsPanning(false)
       lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
+      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
+      lightboxPointersRef.current.clear()
     }
   }, [lightboxUrl])
 
@@ -544,25 +548,39 @@ export default function App() {
     setLightboxUrl(null)
   }, [])
 
-  const updateLightboxZoom = useCallback((nextScale, origin) => {
+  const updateLightboxZoom = useCallback((nextScale, origin, panDelta) => {
+    const deltaX = panDelta?.x ?? 0
+    const deltaY = panDelta?.y ?? 0
     setLightboxScale(prevScale => {
       const target = clamp(nextScale, LIGHTBOX_MIN_SCALE, LIGHTBOX_MAX_SCALE)
       const diff = Math.abs(target - prevScale)
       if (diff < 0.001) {
-        if (target === LIGHTBOX_MIN_SCALE) setLightboxPan({ x: 0, y: 0 })
-        return prevScale
+        if (target === LIGHTBOX_MIN_SCALE) {
+          setLightboxPan({ x: 0, y: 0 })
+        } else if (deltaX || deltaY) {
+          setLightboxPan(prevPan => ({ x: prevPan.x + deltaX, y: prevPan.y + deltaY }))
+        }
+        return target
       }
       setLightboxPan(prevPan => {
         if (target === LIGHTBOX_MIN_SCALE) return { x: 0, y: 0 }
-        if (!origin || !lightboxImageRef.current) return prevPan
+        if (!origin || !lightboxImageRef.current) {
+          if (!(deltaX || deltaY)) return prevPan
+          return { x: prevPan.x + deltaX, y: prevPan.y + deltaY }
+        }
         const rect = lightboxImageRef.current.getBoundingClientRect()
         const offsetX = origin.x - (rect.left + rect.width / 2)
         const offsetY = origin.y - (rect.top + rect.height / 2)
         const ratio = target / prevScale
-        return {
+        const nextPan = {
           x: prevPan.x - offsetX * (ratio - 1),
           y: prevPan.y - offsetY * (ratio - 1),
         }
+        if (deltaX || deltaY) {
+          nextPan.x += deltaX
+          nextPan.y += deltaY
+        }
+        return nextPan
       })
       return target
     })
@@ -604,6 +622,40 @@ export default function App() {
     if (!lightboxUrl) return
     event.stopPropagation()
     const pointerId = event.pointerId
+    lightboxPointersRef.current.set(pointerId, { x: event.clientX, y: event.clientY })
+
+    const activePointers = Array.from(lightboxPointersRef.current.entries())
+    if (activePointers.length >= 2) {
+      const selected = activePointers.slice(-2)
+      const [[id1, p1], [id2, p2]] = selected
+      const center = {
+        x: (p1.x + p2.x) / 2,
+        y: (p1.y + p2.y) / 2,
+      }
+      const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
+      lightboxPinchRef.current = {
+        active: true,
+        pointerIds: [id1, id2],
+        initialScale: lightboxScale,
+        initialDistance: distance,
+        initialPan: lightboxPan,
+        initialCenter: center,
+        lastCenter: center,
+      }
+      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
+      lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
+      lightboxDragDeltaRef.current = 0
+      setLightboxDragOffset(0)
+      setLightboxIsPanning(false)
+      setLightboxDragging(false)
+      try {
+        event.currentTarget.setPointerCapture(pointerId)
+      } catch (err) {
+        // algunos navegadores pueden lanzar si no soportan pointer capture
+      }
+      return
+    }
+
     if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
       lightboxPanRef.current = {
         active: true,
@@ -628,15 +680,44 @@ export default function App() {
 
   const handleLightboxPointerMove = useCallback((event) => {
     if (!lightboxUrl) return
+    const pointerId = event.pointerId
+    if (lightboxPointersRef.current.has(pointerId)) {
+      lightboxPointersRef.current.set(pointerId, { x: event.clientX, y: event.clientY })
+    }
+
+    const pinch = lightboxPinchRef.current
+    if (pinch.active) {
+      const [id1, id2] = pinch.pointerIds
+      const p1 = lightboxPointersRef.current.get(id1)
+      const p2 = lightboxPointersRef.current.get(id2)
+      if (p1 && p2) {
+        const center = {
+          x: (p1.x + p2.x) / 2,
+          y: (p1.y + p2.y) / 2,
+        }
+        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
+        const ratio = distance / (pinch.initialDistance || 1)
+        const targetScale = pinch.initialScale * ratio
+        const previousCenter = pinch.lastCenter || pinch.initialCenter
+        const panDelta = {
+          x: center.x - previousCenter.x,
+          y: center.y - previousCenter.y,
+        }
+        updateLightboxZoom(targetScale, center, panDelta)
+        lightboxPinchRef.current.lastCenter = center
+      }
+      return
+    }
+
     const panGesture = lightboxPanRef.current
-    if (panGesture.active && panGesture.pointerId === event.pointerId) {
+    if (panGesture.active && panGesture.pointerId === pointerId) {
       const dx = event.clientX - panGesture.startX
       const dy = event.clientY - panGesture.startY
       setLightboxPan({ x: panGesture.startPan.x + dx, y: panGesture.startPan.y + dy })
       return
     }
     const drag = lightboxDragRef.current
-    if (!drag.active || drag.pointerId !== event.pointerId) return
+    if (!drag.active || drag.pointerId !== pointerId) return
     const delta = event.clientY - drag.startY
     if (delta > 0) {
       lightboxDragDeltaRef.current = delta
@@ -646,7 +727,7 @@ export default function App() {
       lightboxDragDeltaRef.current = 0
       setLightboxDragOffset(prev => prev * 0.5)
     }
-  }, [lightboxUrl])
+  }, [lightboxUrl, updateLightboxZoom])
 
   const finishLightboxDrag = useCallback((event, cancelled = false) => {
     const drag = lightboxDragRef.current
@@ -667,33 +748,144 @@ export default function App() {
 
   const handleLightboxPointerUp = useCallback((event) => {
     event.stopPropagation()
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch (err) {}
+
+    lightboxPointersRef.current.delete(event.pointerId)
+
+    const pinch = lightboxPinchRef.current
+    if (pinch.active && pinch.pointerIds.includes(event.pointerId)) {
+      const remaining = Array.from(lightboxPointersRef.current.entries())
+      if (remaining.length >= 2) {
+        const selected = remaining.slice(-2)
+        const [[id1, p1], [id2, p2]] = selected
+        const center = {
+          x: (p1.x + p2.x) / 2,
+          y: (p1.y + p2.y) / 2,
+        }
+        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
+        lightboxPinchRef.current = {
+          active: true,
+          pointerIds: [id1, id2],
+          initialScale: lightboxScale,
+          initialDistance: distance,
+          initialPan: lightboxPan,
+          initialCenter: center,
+          lastCenter: center,
+        }
+        return
+      }
+      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
+      setLightboxIsPanning(false)
+    }
+
     const panGesture = lightboxPanRef.current
     if (panGesture.active && panGesture.pointerId === event.pointerId) {
       lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
       setLightboxIsPanning(false)
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId)
-      } catch (err) {}
       if (lightboxScale <= LIGHTBOX_MIN_SCALE + 0.01) {
         setLightboxPan({ x: 0, y: 0 })
       }
-      return
     }
-    finishLightboxDrag(event, false)
-  }, [finishLightboxDrag, lightboxScale])
+
+    const drag = lightboxDragRef.current
+    if (drag.active && drag.pointerId === event.pointerId) {
+      finishLightboxDrag(event, false)
+    }
+
+    if (!lightboxPinchRef.current.active) {
+      const remaining = Array.from(lightboxPointersRef.current.entries())
+      if (remaining.length === 1) {
+        const [remainingId, point] = remaining[0]
+        if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
+          lightboxPanRef.current = {
+            active: true,
+            pointerId: remainingId,
+            startX: point.x,
+            startY: point.y,
+            startPan: lightboxPan,
+          }
+          setLightboxIsPanning(true)
+        } else {
+          lightboxDragRef.current = { active: true, startY: point.y, pointerId: remainingId }
+          lightboxDragDeltaRef.current = 0
+          setLightboxDragOffset(0)
+          setLightboxDragging(false)
+        }
+      }
+    }
+  }, [finishLightboxDrag, lightboxPan, lightboxScale])
 
   const handleLightboxPointerCancel = useCallback((event) => {
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch (err) {}
+
+    lightboxPointersRef.current.delete(event.pointerId)
+
+    const pinch = lightboxPinchRef.current
+    if (pinch.active && pinch.pointerIds.includes(event.pointerId)) {
+      const remaining = Array.from(lightboxPointersRef.current.entries())
+      if (remaining.length >= 2) {
+        const selected = remaining.slice(-2)
+        const [[id1, p1], [id2, p2]] = selected
+        const center = {
+          x: (p1.x + p2.x) / 2,
+          y: (p1.y + p2.y) / 2,
+        }
+        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
+        lightboxPinchRef.current = {
+          active: true,
+          pointerIds: [id1, id2],
+          initialScale: lightboxScale,
+          initialDistance: distance,
+          initialPan: lightboxPan,
+          initialCenter: center,
+          lastCenter: center,
+        }
+        return
+      }
+      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
+      setLightboxIsPanning(false)
+    }
+
     const panGesture = lightboxPanRef.current
     if (panGesture.active && panGesture.pointerId === event.pointerId) {
       lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
       setLightboxIsPanning(false)
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId)
-      } catch (err) {}
-      return
+      if (lightboxScale <= LIGHTBOX_MIN_SCALE + 0.01) {
+        setLightboxPan({ x: 0, y: 0 })
+      }
     }
-    finishLightboxDrag(event, true)
-  }, [finishLightboxDrag])
+
+    const drag = lightboxDragRef.current
+    if (drag.active && drag.pointerId === event.pointerId) {
+      finishLightboxDrag(event, true)
+    }
+
+    if (!lightboxPinchRef.current.active) {
+      const remaining = Array.from(lightboxPointersRef.current.entries())
+      if (remaining.length === 1) {
+        const [remainingId, point] = remaining[0]
+        if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
+          lightboxPanRef.current = {
+            active: true,
+            pointerId: remainingId,
+            startX: point.x,
+            startY: point.y,
+            startPan: lightboxPan,
+          }
+          setLightboxIsPanning(true)
+        } else {
+          lightboxDragRef.current = { active: true, startY: point.y, pointerId: remainingId }
+          lightboxDragDeltaRef.current = 0
+          setLightboxDragOffset(0)
+          setLightboxDragging(false)
+        }
+      }
+    }
+  }, [finishLightboxDrag, lightboxPan, lightboxScale])
 
   // Podio del Caos: Top 3 por suma NEGATIVA total (más negativo primero)
   const worstNegPodium = useMemo(() => {
