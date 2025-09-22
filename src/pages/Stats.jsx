@@ -3,7 +3,7 @@
 // ==============================
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart2, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare } from 'lucide-react'
+import { BarChart2, TrendingUp, TrendingDown, Trophy, Eye, EyeOff, Medal, PlaySquare, Info, X } from 'lucide-react'
 
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
@@ -37,6 +37,7 @@ export default function Stats(){
     if (typeof window === 'undefined') return false
     return window.innerWidth < 640
   })
+  const [activeCell, setActiveCell] = useState(null)
 
   useEffect(() => {
     const handleResize = () => {
@@ -47,6 +48,16 @@ export default function Stats(){
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    if(!activeCell) return
+    if(typeof window === 'undefined') return undefined
+    const handleKeyDown = (event) => {
+      if(event.key === 'Escape') setActiveCell(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeCell])
 
   useEffect(() => {
     async function load(){
@@ -109,9 +120,18 @@ export default function Stats(){
     return Array.from({length: maxGw}, (_,i)=> i+1)
   }, [byGwFiltered])
 
+  const participantsById = useMemo(() => {
+    const map = new Map()
+    for(const p of participants){
+      map.set(p.id, p)
+    }
+    return map
+  }, [participants])
+
   // Ranking por jornada individual (depende de showAdjustedHistoric)
-  const ranksByPid = useMemo(() => {
+  const { ranksByPid, historicCellDetails } = useMemo(() => {
     const rankMap = new Map()
+    const detailMap = new Map()
     const byJornada = new Map()
     for(const r of (byGwFiltered||[])){
       if(!byJornada.has(r.jornada)) byJornada.set(r.jornada, [])
@@ -135,15 +155,25 @@ export default function Stats(){
       jornadaScores.sort((a, b) => b.total_points - a.total_points)
       jornadaScores.forEach((score, idx) => {
         if(!rankMap.has(score.participant_id)) rankMap.set(score.participant_id, Array(38).fill(null))
+        if(!detailMap.has(score.participant_id)) detailMap.set(score.participant_id, Array(38).fill(null))
         rankMap.get(score.participant_id)[jornada - 1] = idx + 1
+        detailMap.get(score.participant_id)[jornada - 1] = {
+          rank: idx + 1,
+          jornada,
+          pointsBase: score.points_external,
+          pointsAdjustments: score.points_adjustments,
+          pointsTotal: score.total_points,
+          isAdjusted: showAdjustedHistoric
+        }
       })
     }
-    return rankMap
+    return { ranksByPid: rankMap, historicCellDetails: detailMap }
   }, [byGwFiltered, showAdjustedHistoric])
 
   // Ranking por puntos acumulados (depende de showAdjustedAccum)
-  const accumulatedRanksByPid = useMemo(() => {
+  const { accumulatedRanksByPid, accumulatedCellDetails } = useMemo(() => {
     const accRankMap = new Map()
+    const detailMap = new Map()
     const accumulatedPoints = new Map()
     const byJornada = new Map()
     for(const r of (byGwFiltered||[])){
@@ -184,10 +214,19 @@ export default function Stats(){
       accumulatedScores.sort((a, b) => b.total_points - a.total_points)
       accumulatedScores.forEach((score, idx) => {
         if(!accRankMap.has(score.participant_id)) accRankMap.set(score.participant_id, Array(38).fill(null))
+        if(!detailMap.has(score.participant_id)) detailMap.set(score.participant_id, Array(38).fill(null))
         accRankMap.get(score.participant_id)[jornada - 1] = idx + 1
+        detailMap.get(score.participant_id)[jornada - 1] = {
+          rank: idx + 1,
+          jornada,
+          pointsBase: score.acc_external,
+          pointsAdjustments: score.acc_adjustments,
+          pointsTotal: score.total_points,
+          isAdjusted: showAdjustedHistoric
+        }
       })
     }
-    return accRankMap
+    return { accumulatedRanksByPid: accRankMap, accumulatedCellDetails: detailMap }
   }, [byGwFiltered, showAdjustedHistoric])
 
   const leadersCount = useMemo(() => {
@@ -390,6 +429,43 @@ export default function Stats(){
     }))
   }, [officialRanking, showAdjustedHistoric])
 
+  const activeCellData = useMemo(() => {
+    if(!activeCell) return null
+    const { participantId, jornada, type } = activeCell
+    const detailMap = type === 'historic' ? historicCellDetails : accumulatedCellDetails
+    const detail = detailMap?.get(participantId)?.[jornada - 1]
+    if(!detail) return null
+    const participant = participantsById.get(participantId)
+    if(!participant) return null
+    return {
+      ...detail,
+      participant,
+      type,
+      jornada
+    }
+  }, [activeCell, historicCellDetails, accumulatedCellDetails, participantsById])
+
+  const activeCellLabels = useMemo(() => {
+    if(!activeCellData) return null
+    return {
+      baseLabel: activeCellData.type === 'historic'
+        ? 'Puntos jornada (Fantasy)'
+        : 'Puntos acumulados (Fantasy)',
+      adjustmentsLabel: activeCellData.type === 'historic'
+        ? 'Ajustes de jornada'
+        : 'Ajustes acumulados',
+      totalLabel: activeCellData.isAdjusted ? 'Total con ajustes' : 'Total sin ajustes',
+      modeHint: activeCellData.isAdjusted
+        ? 'Bonificaciones/penalizaciones aplicadas en la visualización'
+        : 'Solo puntos oficiales sin bonificaciones'
+    }
+  }, [activeCellData])
+
+  useEffect(() => {
+    if(!activeCell) return
+    if(!activeCellData) setActiveCell(null)
+  }, [activeCell, activeCellData])
+
   // ======= RENDER =======
   if(loading){
     return (
@@ -533,14 +609,30 @@ export default function Stats(){
                               </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
+                                const detail = historicCellDetails.get(p.id)?.[gw-1] || null
                                 const isFuture = gw > maxJornadaWithData
+                                const isDisabled = !detail
+                                const ringClass = showAdjustedHistoric
+                                  ? 'focus-visible:ring-indigo-400 dark:focus-visible:ring-violet-400'
+                                  : 'focus-visible:ring-amber-400 dark:focus-visible:ring-orange-400'
                                 return (
                                   <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-30' : ''].join(' ')}>
-                                    <div className={[
-                                      'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
-                                      rankCellClass(rk, totalPlayers)
-                                    ].join(' ')}>{formatOrdinal(rk)}</div>
+                                    <button
+                                      type="button"
+                                      disabled={isDisabled}
+                                      onClick={() => detail && setActiveCell({ type: 'historic', participantId: p.id, jornada: gw })}
+                                      title={detail ? `Detalles jornada ${gw} · ${p.name}` : undefined}
+                                      aria-label={detail ? `Detalles jornada ${gw} para ${p.name}` : undefined}
+                                      className={[
+                                        'w-full rounded-md text-center text-xs font-semibold px-2 py-1 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-default',
+                                        showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
+                                        rk ? 'hover:shadow-sm' : '',
+                                        ringClass,
+                                        rankCellClass(rk, totalPlayers)
+                                      ].join(' ')}
+                                    >
+                                      {formatOrdinal(rk)}
+                                    </button>
                                   </td>
                                 )
                               })}
@@ -612,14 +704,30 @@ export default function Stats(){
                               </td>
                               {Array.from({length: 38}, (_,i) => i+1).map(gw => {
                                 const rk = arr[gw-1]
+                                const detail = accumulatedCellDetails.get(p.id)?.[gw-1] || null
                                 const isFuture = gw > maxJornadaWithData
+                                const isDisabled = !detail
+                                const ringClass = showAdjustedHistoric
+                                  ? 'focus-visible:ring-indigo-400 dark:focus-visible:ring-violet-400'
+                                  : 'focus-visible:ring-amber-400 dark:focus-visible:ring-orange-400'
                                 return (
                                   <td key={gw} className={['px-1.5 py-1.5', isFuture && !rk ? 'opacity-30' : ''].join(' ')}>
-                                    <div className={[
-                                      'rounded-md text-center text-xs font-semibold px-2 py-1 border',
-                                      showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
-                                      rankCellClass(rk, totalPlayers)
-                                    ].join(' ')}>{formatOrdinal(rk)}</div>
+                                    <button
+                                      type="button"
+                                      disabled={isDisabled}
+                                      onClick={() => detail && setActiveCell({ type: 'accumulated', participantId: p.id, jornada: gw })}
+                                      title={detail ? `Detalles acumulado jornada ${gw} · ${p.name}` : undefined}
+                                      aria-label={detail ? `Detalles acumulados hasta la jornada ${gw} para ${p.name}` : undefined}
+                                      className={[
+                                        'w-full rounded-md text-center text-xs font-semibold px-2 py-1 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-default',
+                                        showAdjustedHistoric ? 'border-indigo-200 dark:border-violet-700' : 'border-amber-200 dark:border-orange-700',
+                                        rk ? 'hover:shadow-sm' : '',
+                                        ringClass,
+                                        rankCellClass(rk, totalPlayers)
+                                      ].join(' ')}
+                                    >
+                                      {formatOrdinal(rk)}
+                                    </button>
                                   </td>
                                 )
                               })}
@@ -933,6 +1041,107 @@ export default function Stats(){
           )}
         </AnimatePresence>
       </section>
+      <AnimatePresence>
+        {activeCellData && activeCellLabels ? (
+          <motion.div
+            key="cell-info-overlay"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveCell(null)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cell-info-title"
+              aria-describedby="cell-info-description"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-[201] w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 sm:p-6"
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      {activeCellData.type === 'historic' ? 'Ranking jornada' : 'Ranking acumulado'}
+                    </Badge>
+                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
+                      J{activeCellData.jornada}
+                    </Badge>
+                  </div>
+                  <div>
+                    <h3 id="cell-info-title" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                      {activeCellData.participant.name}
+                    </h3>
+                    {activeCellData.participant.team_name ? (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {activeCellData.participant.team_name}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveCell(null)}
+                  className="rounded-full border border-slate-300 p-1 text-slate-500 transition hover:border-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-200 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900"
+                  aria-label="Cerrar detalles"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Puesto</span>
+                <div className="mt-1 text-3xl font-black text-slate-900 dark:text-slate-100">
+                  {formatOrdinal(activeCellData.rank)}
+                </div>
+              </div>
+
+              <div className="grid gap-3 text-sm sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {activeCellLabels.baseLabel}
+                  </span>
+                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsBase)].join(' ')}>
+                    {fmtSigned(activeCellData.pointsBase)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {activeCellLabels.adjustmentsLabel}
+                  </span>
+                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsAdjustments)].join(' ')}>
+                    {fmtSigned(activeCellData.pointsAdjustments)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {activeCellLabels.totalLabel}
+                  </span>
+                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsTotal)].join(' ')}>
+                    {fmtSigned(activeCellData.pointsTotal)}
+                  </div>
+                </div>
+              </div>
+
+              <div id="cell-info-description" className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <Info className="mt-[2px] h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <span>{activeCellLabels.modeHint}</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   )
 }
