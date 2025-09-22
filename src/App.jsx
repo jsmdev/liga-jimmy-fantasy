@@ -32,6 +32,10 @@ const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 // Mostrar/ocultar carrusel globalmente
 const SHOW_CAROUSEL = true
+const LIGHTBOX_MIN_SCALE = 1
+const LIGHTBOX_MAX_SCALE = 4
+const LIGHTBOX_ZOOM_STEP = 0.35
+const LIGHTBOX_CLOSE_THRESHOLD = 120
 
 // ==============================
 //  HELPERS
@@ -44,6 +48,7 @@ function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { re
 function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
 function signTextClass(n) { if (n > 0) return 'text-emerald-700 dark:text-emerald-400'; if (n < 0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100' }
 function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
 // --- Helpers de estilo y frase según posición en ranking ---
 function rankStyle(rank, total) {
@@ -269,6 +274,12 @@ export default function App() {
   const [lightboxDragOffset, setLightboxDragOffset] = useState(0)
   const [lightboxDragging, setLightboxDragging] = useState(false)
   const lightboxDragRef = useRef({ active: false, startY: 0, pointerId: null })
+  const lightboxDragDeltaRef = useRef(0)
+  const [lightboxScale, setLightboxScale] = useState(1)
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
+  const [lightboxIsPanning, setLightboxIsPanning] = useState(false)
+  const lightboxPanRef = useRef({ active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } })
+  const lightboxImageRef = useRef(null)
   const [carousel, setCarousel] = useState([])
   const [rankingRows, setRankingRows] = useState([])
   const [scores, setScores] = useState([])
@@ -521,6 +532,11 @@ export default function App() {
       setLightboxDragOffset(0)
       setLightboxDragging(false)
       lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
+      lightboxDragDeltaRef.current = 0
+      setLightboxScale(1)
+      setLightboxPan({ x: 0, y: 0 })
+      setLightboxIsPanning(false)
+      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
     }
   }, [lightboxUrl])
 
@@ -528,42 +544,120 @@ export default function App() {
     setLightboxUrl(null)
   }, [])
 
+  const updateLightboxZoom = useCallback((nextScale, origin) => {
+    setLightboxScale(prevScale => {
+      const target = clamp(nextScale, LIGHTBOX_MIN_SCALE, LIGHTBOX_MAX_SCALE)
+      const diff = Math.abs(target - prevScale)
+      if (diff < 0.001) {
+        if (target === LIGHTBOX_MIN_SCALE) setLightboxPan({ x: 0, y: 0 })
+        return prevScale
+      }
+      setLightboxPan(prevPan => {
+        if (target === LIGHTBOX_MIN_SCALE) return { x: 0, y: 0 }
+        if (!origin || !lightboxImageRef.current) return prevPan
+        const rect = lightboxImageRef.current.getBoundingClientRect()
+        const offsetX = origin.x - (rect.left + rect.width / 2)
+        const offsetY = origin.y - (rect.top + rect.height / 2)
+        const ratio = target / prevScale
+        return {
+          x: prevPan.x - offsetX * (ratio - 1),
+          y: prevPan.y - offsetY * (ratio - 1),
+        }
+      })
+      return target
+    })
+  }, [])
+
+  const handleLightboxZoomIn = useCallback(() => {
+    updateLightboxZoom(lightboxScale + LIGHTBOX_ZOOM_STEP)
+  }, [lightboxScale, updateLightboxZoom])
+
+  const handleLightboxZoomOut = useCallback(() => {
+    updateLightboxZoom(lightboxScale - LIGHTBOX_ZOOM_STEP)
+  }, [lightboxScale, updateLightboxZoom])
+
+  const handleLightboxZoomReset = useCallback(() => {
+    setLightboxIsPanning(false)
+    updateLightboxZoom(LIGHTBOX_MIN_SCALE)
+  }, [updateLightboxZoom])
+
+  const handleLightboxWheel = useCallback((event) => {
+    if (!lightboxUrl) return
+    event.preventDefault()
+    event.stopPropagation()
+    const step = (event.ctrlKey ? LIGHTBOX_ZOOM_STEP / 3 : LIGHTBOX_ZOOM_STEP)
+    const direction = event.deltaY > 0 ? -step : step
+    updateLightboxZoom(lightboxScale + direction, { x: event.clientX, y: event.clientY })
+  }, [lightboxUrl, lightboxScale, updateLightboxZoom])
+
+  const handleLightboxDoubleClick = useCallback((event) => {
+    if (!lightboxUrl) return
+    event.preventDefault()
+    if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
+      updateLightboxZoom(LIGHTBOX_MIN_SCALE)
+    } else {
+      updateLightboxZoom(2, { x: event.clientX, y: event.clientY })
+    }
+  }, [lightboxUrl, lightboxScale, updateLightboxZoom])
+
   const handleLightboxPointerDown = useCallback((event) => {
     if (!lightboxUrl) return
     event.stopPropagation()
     const pointerId = event.pointerId
-    lightboxDragRef.current = { active: true, startY: event.clientY, pointerId }
-    setLightboxDragOffset(0)
-    setLightboxDragging(false)
+    if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
+      lightboxPanRef.current = {
+        active: true,
+        pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startPan: lightboxPan,
+      }
+      setLightboxIsPanning(true)
+    } else {
+      lightboxDragRef.current = { active: true, startY: event.clientY, pointerId }
+      lightboxDragDeltaRef.current = 0
+      setLightboxDragOffset(0)
+      setLightboxDragging(false)
+    }
     try {
       event.currentTarget.setPointerCapture(pointerId)
     } catch (err) {
       // algunos navegadores pueden lanzar si no soportan pointer capture
     }
-  }, [lightboxUrl])
+  }, [lightboxUrl, lightboxScale, lightboxPan])
 
   const handleLightboxPointerMove = useCallback((event) => {
     if (!lightboxUrl) return
+    const panGesture = lightboxPanRef.current
+    if (panGesture.active && panGesture.pointerId === event.pointerId) {
+      const dx = event.clientX - panGesture.startX
+      const dy = event.clientY - panGesture.startY
+      setLightboxPan({ x: panGesture.startPan.x + dx, y: panGesture.startPan.y + dy })
+      return
+    }
     const drag = lightboxDragRef.current
-    if (!drag.active) return
+    if (!drag.active || drag.pointerId !== event.pointerId) return
     const delta = event.clientY - drag.startY
     if (delta > 0) {
+      lightboxDragDeltaRef.current = delta
       setLightboxDragging(true)
-      setLightboxDragOffset(delta)
+      setLightboxDragOffset(prev => prev + (delta - prev) * 0.35)
     } else {
-      setLightboxDragOffset(0)
+      lightboxDragDeltaRef.current = 0
+      setLightboxDragOffset(prev => prev * 0.5)
     }
   }, [lightboxUrl])
 
   const finishLightboxDrag = useCallback((event, cancelled = false) => {
     const drag = lightboxDragRef.current
-    if (!drag.active) return
+    if (!drag.active || drag.pointerId !== event.pointerId) return
     lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
     try {
       event.currentTarget.releasePointerCapture(event.pointerId)
     } catch (err) {}
-    const delta = event.clientY - drag.startY
-    if (!cancelled && delta > 120) {
+    const delta = lightboxDragDeltaRef.current
+    lightboxDragDeltaRef.current = 0
+    if (!cancelled && delta > LIGHTBOX_CLOSE_THRESHOLD) {
       handleLightboxClose()
     } else {
       setLightboxDragOffset(0)
@@ -573,10 +667,31 @@ export default function App() {
 
   const handleLightboxPointerUp = useCallback((event) => {
     event.stopPropagation()
+    const panGesture = lightboxPanRef.current
+    if (panGesture.active && panGesture.pointerId === event.pointerId) {
+      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
+      setLightboxIsPanning(false)
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      } catch (err) {}
+      if (lightboxScale <= LIGHTBOX_MIN_SCALE + 0.01) {
+        setLightboxPan({ x: 0, y: 0 })
+      }
+      return
+    }
     finishLightboxDrag(event, false)
-  }, [finishLightboxDrag])
+  }, [finishLightboxDrag, lightboxScale])
 
   const handleLightboxPointerCancel = useCallback((event) => {
+    const panGesture = lightboxPanRef.current
+    if (panGesture.active && panGesture.pointerId === event.pointerId) {
+      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
+      setLightboxIsPanning(false)
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      } catch (err) {}
+      return
+    }
     finishLightboxDrag(event, true)
   }, [finishLightboxDrag])
 
@@ -1397,10 +1512,13 @@ function HomePage() {
                     onPointerMove={handleLightboxPointerMove}
                     onPointerUp={handleLightboxPointerUp}
                     onPointerCancel={handleLightboxPointerCancel}
+                    onWheel={handleLightboxWheel}
+                    onDoubleClick={handleLightboxDoubleClick}
                     style={{
                       transform: `translateY(${lightboxDragOffset}px)`,
-                      transition: lightboxDragging ? 'none' : 'transform 0.2s ease-out',
-                      touchAction: 'none'
+                      transition: lightboxDragging ? 'transform 0.12s ease-out' : 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)',
+                      touchAction: 'none',
+                      cursor: lightboxScale > LIGHTBOX_MIN_SCALE + 0.01 ? (lightboxIsPanning ? 'grabbing' : 'grab') : 'default'
                     }}
                   >
                     <button
@@ -1412,12 +1530,52 @@ function HomePage() {
                     >
                       <X className="h-4 w-4" />
                     </button>
+                    <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
                     <img
+                      ref={lightboxImageRef}
                       src={lightboxUrl}
                       alt="Plantilla de la jornada"
-                      className="block max-h-[85vh] w-full rounded-2xl object-contain"
+                      className="block max-h-[85vh] w-full rounded-2xl object-contain select-none"
+                      style={{
+                        transform: `translate3d(${lightboxPan.x}px, ${lightboxPan.y}px, 0) scale(${lightboxScale})`,
+                        transition: lightboxIsPanning ? 'transform 0.08s ease-out' : 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)'
+                      }}
                       draggable={false}
                     />
+                    <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm shadow-lg text-white">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomOut() }}
+                        className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                        aria-label="Alejar foto"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomReset() }}
+                        className="pointer-events-auto hidden sm:inline-flex h-8 min-w-[48px] items-center justify-center rounded-full bg-white/15 px-3 text-xs font-medium uppercase tracking-wide transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                        aria-label="Restablecer zoom"
+                      >
+                        {Math.round(lightboxScale * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomReset() }}
+                        className="pointer-events-auto sm:hidden inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                        aria-label="Restablecer zoom"
+                      >
+                        {Math.round(lightboxScale * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomIn() }}
+                        className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                        aria-label="Acercar foto"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
