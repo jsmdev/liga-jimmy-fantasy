@@ -152,6 +152,83 @@ function StatDuo({ rows, type = 'count', variant = 'luminous' }) {
   )
 }
 
+function HistoricalPodiumPanel({ variant, rows }) {
+  const isBest = variant === 'best'
+  const variantTheme = isBest
+    ? {
+        title: 'Explosiones históricas',
+        description: 'Tres actuaciones legendarias de cualquier jornada.',
+        iconClass: 'text-emerald-600 dark:text-emerald-400',
+        badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+        pillClass: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',
+      }
+    : {
+        title: 'Debacles históricas',
+        description: 'Los días menos inspirados que quedaron para el recuerdo.',
+        iconClass: 'text-rose-600 dark:text-rose-400',
+        badgeClass: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+        pillClass: 'bg-rose-500/20 text-rose-700 dark:text-rose-300',
+      }
+
+  return (
+    <div className="glass rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <span className={[variantTheme.iconClass, 'inline-flex items-center justify-center rounded-full bg-white/60 dark:bg-slate-900/40 p-1'].join(' ')}>
+              {isBest ? <Sparkles className="w-4 h-4" /> : <ThumbsDown className="w-4 h-4" />}
+            </span>
+            {variantTheme.title}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {variantTheme.description}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-4 space-y-3">
+        {rows.length ? rows.map(row => (
+          <li key={`${variant}-${row.entryId}`} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={[
+                'w-8 h-8 shrink-0 rounded-full border flex items-center justify-center text-sm font-semibold',
+                variantTheme.badgeClass,
+              ].join(' ')}>
+                {row.position}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                  {row.name}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  {row.teamName}
+                </div>
+                {row.jornada ? (
+                  <span className={['mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold', variantTheme.pillClass].join(' ')}>
+                    Jornada {row.jornada}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className={['text-sm font-bold', signTextClass(row.displayValue)].join(' ')}>
+                {fmtSigned(row.displayValue)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                Fantasy: <span className="font-semibold">{fmtSigned(row.externalTotal)}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                Ajuste: <span className={["font-semibold", signTextClass(row.adjustmentsTotal)].join(' ')}>{fmtSigned(row.adjustmentsTotal)}</span>
+              </div>
+            </div>
+          </li>
+        )) : (
+          <li className="text-sm text-slate-500 dark:text-slate-400">Sin registros suficientes.</li>
+        )}
+      </ul>
+    </div>
+  )
+}
+
 // ==============================
 //  APP
 // ==============================
@@ -171,6 +248,7 @@ export default function App() {
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [carousel, setCarousel] = useState([])
   const [rankingRows, setRankingRows] = useState([])
+  const [scores, setScores] = useState([])
 
   // Colapsables
   const [collapsedRanking, setCollapsedRanking] = useState(false)
@@ -179,6 +257,7 @@ export default function App() {
   const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
   const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
   const [collapsedRules, setCollapsedRules] = useState(false) // Normativa
+  const [collapsedHighlights, setCollapsedHighlights] = useState(false) // momentazos históricos
 
   const [activePath, setActivePath] = useState(location.pathname || '/')
   useEffect(() => {
@@ -210,6 +289,11 @@ export default function App() {
         .select('id,participant_id,amount,reason,date')
         .order('date', { ascending: false })
 
+      const { data: scoresData } = await supabase
+        .from('scores')
+        .select('participant_id,jornada,points_external,points_adjustments')
+        .order('jornada', { ascending: true })
+
       // Carrusel (solo si está activado)
       if (SHOW_CAROUSEL) {
         const { data: photos } = await supabase
@@ -235,11 +319,12 @@ export default function App() {
 
       setParticipants(parts || [])
       setPenalties(pens || [])
+      setScores(scoresData || [])
       setRankingRows(rank || [])
       setNaughtyDays(naughty || [])
     } catch (e) {
       console.error('load() error', e)
-      setParticipants([]); setPenalties([]); setCarousel([]); setRankingRows([]); setNaughtyDays([])
+      setParticipants([]); setPenalties([]); setCarousel([]); setScores([]); setRankingRows([]); setNaughtyDays([])
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
@@ -322,6 +407,50 @@ export default function App() {
   const podium = useMemo(() => ranking.slice(0, 3), [ranking])
   const tailTwo = useMemo(() => ranking.slice(-2), [ranking])
   const middlePack = useMemo(() => ranking.slice(3, Math.max(3, ranking.length - 2)), [ranking])
+
+  const [showAdjustedHighlights, setShowAdjustedHighlights] = useState(true)
+
+  const historicalPerformances = useMemo(() => {
+    if (!scores?.length) return []
+    return scores
+      .map(score => {
+        const participant = participants.find(pp => pp.id === score.participant_id)
+        const external = Number(score.points_external) || 0
+        const adjustments = Number(score.points_adjustments) || 0
+        return {
+          entryId: `${score.participant_id}-${score.jornada}`,
+          participantId: score.participant_id,
+          jornada: score.jornada,
+          name: participant?.name || 'Participante',
+          teamName: participant?.team_name || 'Equipo',
+          externalTotal: external,
+          adjustmentsTotal: adjustments,
+          adjustedTotal: external + adjustments,
+        }
+      })
+      .filter(row => (row.externalTotal !== 0 || row.adjustmentsTotal !== 0))
+  }, [scores, participants])
+
+  const historicalPodiums = useMemo(() => {
+    if (!historicalPerformances.length) return { best: [], worst: [] }
+    const key = showAdjustedHighlights ? 'adjustedTotal' : 'externalTotal'
+    const label = showAdjustedHighlights ? 'Liga Jimmy Fantasy' : 'Liga DAZN'
+    const best = historicalPerformances
+      .slice()
+      .sort((a, b) => (b[key] - a[key]) || (b.externalTotal - a.externalTotal))
+      .filter(row => row[key] !== null && row[key] !== undefined)
+      .filter(row => row[key] !== -Infinity && row[key] !== Infinity)
+      .slice(0, 3)
+      .map((row, index) => ({ ...row, position: index + 1, competition: label, displayValue: row[key], displayKey: key }))
+    const worst = historicalPerformances
+      .slice()
+      .sort((a, b) => (a[key] - b[key]) || (a.externalTotal - b.externalTotal))
+      .filter(row => row[key] !== null && row[key] !== undefined)
+      .filter(row => row[key] !== -Infinity && row[key] !== Infinity)
+      .slice(0, 3)
+      .map((row, index) => ({ ...row, position: index + 1, competition: label, displayValue: row[key], displayKey: key }))
+    return { best, worst }
+  }, [historicalPerformances, showAdjustedHighlights])
 
   // Carrusel
   const carouselPhotos = useMemo(() => carousel, [carousel])
@@ -712,6 +841,68 @@ function HomePage() {
                 )}
               </AnimatePresence>
             </section>
+
+            {/* Momentazos históricos */}
+            {((historicalPodiums.best.length > 0) || (historicalPodiums.worst.length > 0)) && (
+              <section>
+                <SectionHeader
+                  title="Momentazos históricos"
+                  subtitle="Las tres mejores y peores actuaciones individuales de cualquier jornada"
+                  collapsed={collapsedHighlights}
+                  onToggle={() => setCollapsedHighlights(v => !v)}
+                />
+                <AnimatePresence initial={false}>
+                  {!collapsedHighlights && (
+                    <motion.div
+                      key="historical-highlights"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="mt-4 glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Mejores y peores puntuaciones individuales en la historia de la liga. Modo activo: {showAdjustedHighlights ? 'Liga Jimmy Fantasy (con ajustes)' : 'Liga DAZN (sin ajustes)'}.
+                        </p>
+                        <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/50 shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setShowAdjustedHighlights(true)}
+                            className={[
+                              'px-3 py-1.5 text-xs font-semibold transition',
+                              showAdjustedHighlights
+                                ? 'bg-indigo-600 text-white'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                            ].join(' ')}
+                            aria-pressed={showAdjustedHighlights}
+                          >
+                            Liga Jimmy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAdjustedHighlights(false)}
+                            className={[
+                              'px-3 py-1.5 text-xs font-semibold transition',
+                              !showAdjustedHighlights
+                                ? 'bg-amber-500 text-amber-950'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                            ].join(' ')}
+                            aria-pressed={!showAdjustedHighlights}
+                          >
+                            Liga DAZN
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <HistoricalPodiumPanel variant="best" rows={historicalPodiums.best} />
+                        <HistoricalPodiumPanel variant="worst" rows={historicalPodiums.worst} />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </section>
+            )}
 
             {/* Resumen por participante (cards → modal) */}
             <section>
