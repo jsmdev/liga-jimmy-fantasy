@@ -1,7 +1,7 @@
 // ==============================
 //  APP PRINCIPAL – Liga Jimmy Fantasy
 // ==============================
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
@@ -24,6 +24,7 @@ import Rules from "./Rules"
 import Stats from "./pages/Stats"
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { supabase } from '@/lib/supabaseClient.js'
+import { useLightbox } from '@/providers/LightboxProvider.jsx'
 
 // ==============================
 //  CONSTANTES
@@ -32,10 +33,6 @@ const TITLE = 'Liga Jimmy Fantasy'
 const SUBTITLE = 'Una liga para gente de bien'
 // Mostrar/ocultar carrusel globalmente
 const SHOW_CAROUSEL = true
-const LIGHTBOX_MIN_SCALE = 1
-const LIGHTBOX_MAX_SCALE = 4
-const LIGHTBOX_ZOOM_STEP = 0.35
-const LIGHTBOX_CLOSE_THRESHOLD = 120
 
 // ==============================
 //  HELPERS
@@ -48,7 +45,6 @@ function fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch { re
 function signClass(n) { if (n > 0) return 'bg-emerald-600'; if (n < 0) return 'bg-rose-600'; return 'bg-slate-600' }
 function signTextClass(n) { if (n > 0) return 'text-emerald-700 dark:text-emerald-400'; if (n < 0) return 'text-rose-700 dark:text-rose-400'; return 'text-slate-900 dark:text-slate-100' }
 function fmtSigned(n) { return n > 0 ? '+' + n : String(n) }
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
 // --- Helpers de estilo y frase según posición en ranking ---
 function rankStyle(rank, total) {
@@ -197,7 +193,7 @@ function HistoricalPodiumPanel({ variant, rows, onSelectRow }) {
             <li key={`${variant}-${row.entryId}`}>
               <button
                 type="button"
-                onClick={() => hasImage && onSelectRow?.(row.lineupImageUrl)}
+                onClick={() => hasImage && onSelectRow?.(row)}
                 disabled={!hasImage}
                 className={[
                   'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition text-left',
@@ -259,6 +255,7 @@ function HistoricalPodiumPanel({ variant, rows, onSelectRow }) {
 // ==============================
 export default function App() {
   const location = useLocation()
+  const { openLightbox } = useLightbox()
   // Datos
   const [participants, setParticipants] = useState([])
   const [penalties, setPenalties] = useState([])
@@ -269,22 +266,19 @@ export default function App() {
   const [sortBy, setSortBy] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
 
-  // Varios
-  const [lightboxUrl, setLightboxUrl] = useState(null)
-  const [lightboxDragOffset, setLightboxDragOffset] = useState(0)
-  const [lightboxDragging, setLightboxDragging] = useState(false)
-  const lightboxDragRef = useRef({ active: false, startY: 0, pointerId: null })
-  const lightboxDragDeltaRef = useRef(0)
-  const [lightboxScale, setLightboxScale] = useState(1)
-  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
-  const [lightboxIsPanning, setLightboxIsPanning] = useState(false)
-  const lightboxPanRef = useRef({ active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } })
-  const lightboxImageRef = useRef(null)
-  const lightboxPinchRef = useRef({ active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } })
-  const lightboxPointersRef = useRef(new Map())
   const [carousel, setCarousel] = useState([])
   const [rankingRows, setRankingRows] = useState([])
   const [scores, setScores] = useState([])
+
+  const showImage = useCallback((url, meta = {}) => {
+    if (!url) return
+    const slide = {
+      src: url,
+      alt: meta.alt || undefined,
+      description: meta.caption || undefined,
+    }
+    openLightbox([slide], meta.options || {})
+  }, [openLightbox])
 
   // Colapsables
   const [collapsedRanking, setCollapsedRanking] = useState(false)
@@ -503,7 +497,7 @@ export default function App() {
 
   // Modal detalle
   const [detailParticipant, setDetailParticipant] = useState(null)
-  const openDetail = (p) => { setLightboxUrl(null); setDetailParticipant(p) }
+  const openDetail = (p) => { setDetailParticipant(p) }
   const closeDetail = () => setDetailParticipant(null)
 
   // Cierre con ESC y bloqueo del scroll del body
@@ -519,373 +513,6 @@ export default function App() {
       return () => { document.body.style.overflow = prev }
     }
   }, [detailParticipant])
-
-  useEffect(() => {
-    if (!lightboxUrl) return undefined
-    const onKey = (e) => {
-      if (e.key === 'Escape') setLightboxUrl(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [lightboxUrl])
-
-  useEffect(() => {
-    if (!lightboxUrl) {
-      setLightboxDragOffset(0)
-      setLightboxDragging(false)
-      lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
-      lightboxDragDeltaRef.current = 0
-      setLightboxScale(1)
-      setLightboxPan({ x: 0, y: 0 })
-      setLightboxIsPanning(false)
-      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
-      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
-      lightboxPointersRef.current.clear()
-    }
-  }, [lightboxUrl])
-
-  const handleLightboxClose = useCallback(() => {
-    setLightboxUrl(null)
-  }, [])
-
-  const updateLightboxZoom = useCallback((nextScale, origin, panDelta) => {
-    const deltaX = panDelta?.x ?? 0
-    const deltaY = panDelta?.y ?? 0
-    setLightboxScale(prevScale => {
-      const target = clamp(nextScale, LIGHTBOX_MIN_SCALE, LIGHTBOX_MAX_SCALE)
-      const diff = Math.abs(target - prevScale)
-      if (diff < 0.001) {
-        if (target === LIGHTBOX_MIN_SCALE) {
-          setLightboxPan({ x: 0, y: 0 })
-        } else if (deltaX || deltaY) {
-          setLightboxPan(prevPan => ({ x: prevPan.x + deltaX, y: prevPan.y + deltaY }))
-        }
-        return target
-      }
-      setLightboxPan(prevPan => {
-        if (target === LIGHTBOX_MIN_SCALE) return { x: 0, y: 0 }
-        if (!origin || !lightboxImageRef.current) {
-          if (!(deltaX || deltaY)) return prevPan
-          return { x: prevPan.x + deltaX, y: prevPan.y + deltaY }
-        }
-        const rect = lightboxImageRef.current.getBoundingClientRect()
-        const offsetX = origin.x - (rect.left + rect.width / 2)
-        const offsetY = origin.y - (rect.top + rect.height / 2)
-        const ratio = target / prevScale
-        const nextPan = {
-          x: prevPan.x - offsetX * (ratio - 1),
-          y: prevPan.y - offsetY * (ratio - 1),
-        }
-        if (deltaX || deltaY) {
-          nextPan.x += deltaX
-          nextPan.y += deltaY
-        }
-        return nextPan
-      })
-      return target
-    })
-  }, [])
-
-  const handleLightboxZoomIn = useCallback(() => {
-    updateLightboxZoom(lightboxScale + LIGHTBOX_ZOOM_STEP)
-  }, [lightboxScale, updateLightboxZoom])
-
-  const handleLightboxZoomOut = useCallback(() => {
-    updateLightboxZoom(lightboxScale - LIGHTBOX_ZOOM_STEP)
-  }, [lightboxScale, updateLightboxZoom])
-
-  const handleLightboxZoomReset = useCallback(() => {
-    setLightboxIsPanning(false)
-    updateLightboxZoom(LIGHTBOX_MIN_SCALE)
-  }, [updateLightboxZoom])
-
-  const handleLightboxWheel = useCallback((event) => {
-    if (!lightboxUrl) return
-    event.preventDefault()
-    event.stopPropagation()
-    const step = (event.ctrlKey ? LIGHTBOX_ZOOM_STEP / 3 : LIGHTBOX_ZOOM_STEP)
-    const direction = event.deltaY > 0 ? -step : step
-    updateLightboxZoom(lightboxScale + direction, { x: event.clientX, y: event.clientY })
-  }, [lightboxUrl, lightboxScale, updateLightboxZoom])
-
-  const handleLightboxDoubleClick = useCallback((event) => {
-    if (!lightboxUrl) return
-    event.preventDefault()
-    if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
-      updateLightboxZoom(LIGHTBOX_MIN_SCALE)
-    } else {
-      updateLightboxZoom(2, { x: event.clientX, y: event.clientY })
-    }
-  }, [lightboxUrl, lightboxScale, updateLightboxZoom])
-
-  const handleLightboxPointerDown = useCallback((event) => {
-    if (!lightboxUrl) return
-    event.stopPropagation()
-    const pointerId = event.pointerId
-    lightboxPointersRef.current.set(pointerId, { x: event.clientX, y: event.clientY })
-
-    const activePointers = Array.from(lightboxPointersRef.current.entries())
-    if (activePointers.length >= 2) {
-      const selected = activePointers.slice(-2)
-      const [[id1, p1], [id2, p2]] = selected
-      const center = {
-        x: (p1.x + p2.x) / 2,
-        y: (p1.y + p2.y) / 2,
-      }
-      const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
-      lightboxPinchRef.current = {
-        active: true,
-        pointerIds: [id1, id2],
-        initialScale: lightboxScale,
-        initialDistance: distance,
-        initialPan: lightboxPan,
-        initialCenter: center,
-        lastCenter: center,
-      }
-      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
-      lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
-      lightboxDragDeltaRef.current = 0
-      setLightboxDragOffset(0)
-      setLightboxIsPanning(false)
-      setLightboxDragging(false)
-      try {
-        event.currentTarget.setPointerCapture(pointerId)
-      } catch (err) {
-        // algunos navegadores pueden lanzar si no soportan pointer capture
-      }
-      return
-    }
-
-    if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
-      lightboxPanRef.current = {
-        active: true,
-        pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        startPan: lightboxPan,
-      }
-      setLightboxIsPanning(true)
-    } else {
-      lightboxDragRef.current = { active: true, startY: event.clientY, pointerId }
-      lightboxDragDeltaRef.current = 0
-      setLightboxDragOffset(0)
-      setLightboxDragging(false)
-    }
-    try {
-      event.currentTarget.setPointerCapture(pointerId)
-    } catch (err) {
-      // algunos navegadores pueden lanzar si no soportan pointer capture
-    }
-  }, [lightboxUrl, lightboxScale, lightboxPan])
-
-  const handleLightboxPointerMove = useCallback((event) => {
-    if (!lightboxUrl) return
-    const pointerId = event.pointerId
-    if (lightboxPointersRef.current.has(pointerId)) {
-      lightboxPointersRef.current.set(pointerId, { x: event.clientX, y: event.clientY })
-    }
-
-    const pinch = lightboxPinchRef.current
-    if (pinch.active) {
-      const [id1, id2] = pinch.pointerIds
-      const p1 = lightboxPointersRef.current.get(id1)
-      const p2 = lightboxPointersRef.current.get(id2)
-      if (p1 && p2) {
-        const center = {
-          x: (p1.x + p2.x) / 2,
-          y: (p1.y + p2.y) / 2,
-        }
-        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
-        const ratio = distance / (pinch.initialDistance || 1)
-        const targetScale = pinch.initialScale * ratio
-        const previousCenter = pinch.lastCenter || pinch.initialCenter
-        const panDelta = {
-          x: center.x - previousCenter.x,
-          y: center.y - previousCenter.y,
-        }
-        updateLightboxZoom(targetScale, center, panDelta)
-        lightboxPinchRef.current.lastCenter = center
-      }
-      return
-    }
-
-    const panGesture = lightboxPanRef.current
-    if (panGesture.active && panGesture.pointerId === pointerId) {
-      const dx = event.clientX - panGesture.startX
-      const dy = event.clientY - panGesture.startY
-      setLightboxPan({ x: panGesture.startPan.x + dx, y: panGesture.startPan.y + dy })
-      return
-    }
-    const drag = lightboxDragRef.current
-    if (!drag.active || drag.pointerId !== pointerId) return
-    const delta = event.clientY - drag.startY
-    if (delta > 0) {
-      lightboxDragDeltaRef.current = delta
-      setLightboxDragging(true)
-      setLightboxDragOffset(prev => prev + (delta - prev) * 0.35)
-    } else {
-      lightboxDragDeltaRef.current = 0
-      setLightboxDragOffset(prev => prev * 0.5)
-    }
-  }, [lightboxUrl, updateLightboxZoom])
-
-  const finishLightboxDrag = useCallback((event, cancelled = false) => {
-    const drag = lightboxDragRef.current
-    if (!drag.active || drag.pointerId !== event.pointerId) return
-    lightboxDragRef.current = { active: false, startY: 0, pointerId: null }
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    } catch (err) {}
-    const delta = lightboxDragDeltaRef.current
-    lightboxDragDeltaRef.current = 0
-    if (!cancelled && delta > LIGHTBOX_CLOSE_THRESHOLD) {
-      handleLightboxClose()
-    } else {
-      setLightboxDragOffset(0)
-      setLightboxDragging(false)
-    }
-  }, [handleLightboxClose])
-
-  const handleLightboxPointerUp = useCallback((event) => {
-    event.stopPropagation()
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    } catch (err) {}
-
-    lightboxPointersRef.current.delete(event.pointerId)
-
-    const pinch = lightboxPinchRef.current
-    if (pinch.active && pinch.pointerIds.includes(event.pointerId)) {
-      const remaining = Array.from(lightboxPointersRef.current.entries())
-      if (remaining.length >= 2) {
-        const selected = remaining.slice(-2)
-        const [[id1, p1], [id2, p2]] = selected
-        const center = {
-          x: (p1.x + p2.x) / 2,
-          y: (p1.y + p2.y) / 2,
-        }
-        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
-        lightboxPinchRef.current = {
-          active: true,
-          pointerIds: [id1, id2],
-          initialScale: lightboxScale,
-          initialDistance: distance,
-          initialPan: lightboxPan,
-          initialCenter: center,
-          lastCenter: center,
-        }
-        return
-      }
-      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
-      setLightboxIsPanning(false)
-    }
-
-    const panGesture = lightboxPanRef.current
-    if (panGesture.active && panGesture.pointerId === event.pointerId) {
-      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
-      setLightboxIsPanning(false)
-      if (lightboxScale <= LIGHTBOX_MIN_SCALE + 0.01) {
-        setLightboxPan({ x: 0, y: 0 })
-      }
-    }
-
-    const drag = lightboxDragRef.current
-    if (drag.active && drag.pointerId === event.pointerId) {
-      finishLightboxDrag(event, false)
-    }
-
-    if (!lightboxPinchRef.current.active) {
-      const remaining = Array.from(lightboxPointersRef.current.entries())
-      if (remaining.length === 1) {
-        const [remainingId, point] = remaining[0]
-        if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
-          lightboxPanRef.current = {
-            active: true,
-            pointerId: remainingId,
-            startX: point.x,
-            startY: point.y,
-            startPan: lightboxPan,
-          }
-          setLightboxIsPanning(true)
-        } else {
-          lightboxDragRef.current = { active: true, startY: point.y, pointerId: remainingId }
-          lightboxDragDeltaRef.current = 0
-          setLightboxDragOffset(0)
-          setLightboxDragging(false)
-        }
-      }
-    }
-  }, [finishLightboxDrag, lightboxPan, lightboxScale])
-
-  const handleLightboxPointerCancel = useCallback((event) => {
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    } catch (err) {}
-
-    lightboxPointersRef.current.delete(event.pointerId)
-
-    const pinch = lightboxPinchRef.current
-    if (pinch.active && pinch.pointerIds.includes(event.pointerId)) {
-      const remaining = Array.from(lightboxPointersRef.current.entries())
-      if (remaining.length >= 2) {
-        const selected = remaining.slice(-2)
-        const [[id1, p1], [id2, p2]] = selected
-        const center = {
-          x: (p1.x + p2.x) / 2,
-          y: (p1.y + p2.y) / 2,
-        }
-        const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1
-        lightboxPinchRef.current = {
-          active: true,
-          pointerIds: [id1, id2],
-          initialScale: lightboxScale,
-          initialDistance: distance,
-          initialPan: lightboxPan,
-          initialCenter: center,
-          lastCenter: center,
-        }
-        return
-      }
-      lightboxPinchRef.current = { active: false, pointerIds: [], initialScale: 1, initialDistance: 0, initialPan: { x: 0, y: 0 }, initialCenter: { x: 0, y: 0 }, lastCenter: { x: 0, y: 0 } }
-      setLightboxIsPanning(false)
-    }
-
-    const panGesture = lightboxPanRef.current
-    if (panGesture.active && panGesture.pointerId === event.pointerId) {
-      lightboxPanRef.current = { active: false, pointerId: null, startX: 0, startY: 0, startPan: { x: 0, y: 0 } }
-      setLightboxIsPanning(false)
-      if (lightboxScale <= LIGHTBOX_MIN_SCALE + 0.01) {
-        setLightboxPan({ x: 0, y: 0 })
-      }
-    }
-
-    const drag = lightboxDragRef.current
-    if (drag.active && drag.pointerId === event.pointerId) {
-      finishLightboxDrag(event, true)
-    }
-
-    if (!lightboxPinchRef.current.active) {
-      const remaining = Array.from(lightboxPointersRef.current.entries())
-      if (remaining.length === 1) {
-        const [remainingId, point] = remaining[0]
-        if (lightboxScale > LIGHTBOX_MIN_SCALE + 0.01) {
-          lightboxPanRef.current = {
-            active: true,
-            pointerId: remainingId,
-            startX: point.x,
-            startY: point.y,
-            startPan: lightboxPan,
-          }
-          setLightboxIsPanning(true)
-        } else {
-          lightboxDragRef.current = { active: true, startY: point.y, pointerId: remainingId }
-          lightboxDragDeltaRef.current = 0
-          setLightboxDragOffset(0)
-          setLightboxDragging(false)
-        }
-      }
-    }
-  }, [finishLightboxDrag, lightboxPan, lightboxScale])
 
   // Podio del Caos: Top 3 por suma NEGATIVA total (más negativo primero)
   const worstNegPodium = useMemo(() => {
@@ -1273,12 +900,24 @@ function HomePage() {
                         <HistoricalPodiumPanel
                           variant="best"
                           rows={historicalPodiums.best}
-                          onSelectRow={url => setLightboxUrl(url)}
+                          onSelectRow={(row) => {
+                            if (!row?.lineupImageUrl) return
+                            showImage(row.lineupImageUrl, {
+                              alt: `Plantilla histórica de ${row.name}`,
+                              caption: `Jornada ${row.jornada} · ${fmtSigned(row.displayValue)} puntos`,
+                            })
+                          }}
                         />
                         <HistoricalPodiumPanel
                           variant="worst"
                           rows={historicalPodiums.worst}
-                          onSelectRow={url => setLightboxUrl(url)}
+                          onSelectRow={(row) => {
+                            if (!row?.lineupImageUrl) return
+                            showImage(row.lineupImageUrl, {
+                              alt: `Plantilla histórica de ${row.name}`,
+                              caption: `Jornada ${row.jornada} · ${fmtSigned(row.displayValue)} puntos`,
+                            })
+                          }}
                         />
                       </div>
                     </motion.div>
@@ -1346,7 +985,12 @@ function HomePage() {
                             <CardHeader className="pb-2">
                               <div className="flex items-center gap-3">
                                 <div
-                                  onClick={(e) => { e.stopPropagation(); p.photo_url && setLightboxUrl(p.photo_url) }}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (p.photo_url) {
+                                      showImage(p.photo_url, { alt: `Avatar de ${p.name}` })
+                                    }
+                                  }}
                                   className={p.photo_url ? 'cursor-zoom-in' : ''}
                                 >
                                   <Avatar src={p.photo_url} alt={p.name} fallback={initials(p.name)} size="lg" />
@@ -1463,7 +1107,14 @@ function HomePage() {
                                 .map(pen => (
                                   <tr key={pen.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
                                     <td className="px-4 py-3">
-                                      <div onClick={() => pen._photo && setLightboxUrl(pen._photo)} className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}>
+                                      <div
+                                        onClick={() => {
+                                          if (pen._photo) {
+                                            showImage(pen._photo, { alt: `Avatar de ${pen._name}` })
+                                          }
+                                        }}
+                                        className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}
+                                      >
                                         <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
                                       </div>
                                     </td>
@@ -1686,93 +1337,6 @@ function HomePage() {
 
             {/* Bloque de Normativa eliminado de la Home */}
 
-            {/* Lightbox foto */}
-            {lightboxUrl && (
-              <div
-                className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center px-4"
-                onClick={handleLightboxClose}
-              >
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  className="relative w-full max-w-4xl"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div
-                    className="relative rounded-2xl overflow-hidden bg-slate-900/70"
-                    onPointerDown={handleLightboxPointerDown}
-                    onPointerMove={handleLightboxPointerMove}
-                    onPointerUp={handleLightboxPointerUp}
-                    onPointerCancel={handleLightboxPointerCancel}
-                    onWheel={handleLightboxWheel}
-                    onDoubleClick={handleLightboxDoubleClick}
-                    style={{
-                      transform: `translateY(${lightboxDragOffset}px)`,
-                      transition: lightboxDragging ? 'transform 0.12s ease-out' : 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)',
-                      touchAction: 'none',
-                      cursor: lightboxScale > LIGHTBOX_MIN_SCALE + 0.01 ? (lightboxIsPanning ? 'grabbing' : 'grab') : 'default'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => { event.stopPropagation(); handleLightboxClose() }}
-                      className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-                      aria-label="Cerrar plantilla"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
-                    <img
-                      ref={lightboxImageRef}
-                      src={lightboxUrl}
-                      alt="Plantilla de la jornada"
-                      className="block max-h-[85vh] w-full rounded-2xl object-contain select-none"
-                      style={{
-                        transform: `translate3d(${lightboxPan.x}px, ${lightboxPan.y}px, 0) scale(${lightboxScale})`,
-                        transition: lightboxIsPanning ? 'transform 0.08s ease-out' : 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)'
-                      }}
-                      draggable={false}
-                    />
-                    <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm shadow-lg text-white">
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomOut() }}
-                        className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                        aria-label="Alejar foto"
-                      >
-                        -
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomReset() }}
-                        className="pointer-events-auto hidden sm:inline-flex h-8 min-w-[48px] items-center justify-center rounded-full bg-white/15 px-3 text-xs font-medium uppercase tracking-wide transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                        aria-label="Restablecer zoom"
-                      >
-                        {Math.round(lightboxScale * 100)}%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomReset() }}
-                        className="pointer-events-auto sm:hidden inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                        aria-label="Restablecer zoom"
-                      >
-                        {Math.round(lightboxScale * 100)}%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); handleLightboxZoomIn() }}
-                        className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                        aria-label="Acercar foto"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ===== MODAL DETALLE PARTICIPANTE ===== */}
             {detailParticipant && (
               <div
@@ -1850,7 +1414,30 @@ function HomePage() {
                       {/* Foto del equipo */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto del equipo</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className={[
+                            'aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800',
+                            detailParticipant.photo_url ? 'cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-violet-400' : '',
+                          ].join(' ')}
+                          role={detailParticipant.photo_url ? 'button' : undefined}
+                          tabIndex={detailParticipant.photo_url ? 0 : -1}
+                          onClick={() => {
+                            if (detailParticipant.photo_url) {
+                              showImage(detailParticipant.photo_url, {
+                                alt: `Equipo de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (!detailParticipant.photo_url) return
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              showImage(detailParticipant.photo_url, {
+                                alt: `Equipo de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                        >
                           {detailParticipant.photo_url ? (
                             <img src={detailParticipant.photo_url} alt={`Equipo de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
                           ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
@@ -1860,7 +1447,30 @@ function HomePage() {
                       {/* Foto real */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Foto real</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className={[
+                            'aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800',
+                            detailParticipant.photo_real_url ? 'cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-violet-400' : '',
+                          ].join(' ')}
+                          role={detailParticipant.photo_real_url ? 'button' : undefined}
+                          tabIndex={detailParticipant.photo_real_url ? 0 : -1}
+                          onClick={() => {
+                            if (detailParticipant.photo_real_url) {
+                              showImage(detailParticipant.photo_real_url, {
+                                alt: `Foto real de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (!detailParticipant.photo_real_url) return
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              showImage(detailParticipant.photo_real_url, {
+                                alt: `Foto real de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                        >
                           {detailParticipant.photo_real_url ? (
                             <img src={detailParticipant.photo_real_url} alt={`Foto real de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
                           ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
@@ -1870,7 +1480,30 @@ function HomePage() {
                       {/* Entrenador de referencia */}
                       <div className="glass rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                         <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300">Entrenador de referencia</div>
-                        <div className="aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className={[
+                            'aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800',
+                            detailParticipant.coach_photo_url ? 'cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-violet-400' : '',
+                          ].join(' ')}
+                          role={detailParticipant.coach_photo_url ? 'button' : undefined}
+                          tabIndex={detailParticipant.coach_photo_url ? 0 : -1}
+                          onClick={() => {
+                            if (detailParticipant.coach_photo_url) {
+                              showImage(detailParticipant.coach_photo_url, {
+                                alt: `Entrenador de referencia de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (!detailParticipant.coach_photo_url) return
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              showImage(detailParticipant.coach_photo_url, {
+                                alt: `Entrenador de referencia de ${detailParticipant.name}`,
+                              })
+                            }
+                          }}
+                        >
                           {detailParticipant.coach_photo_url ? (
                             <img src={detailParticipant.coach_photo_url} alt={`Entrenador de referencia de ${detailParticipant.name}`} className="object-cover w-full h-full" loading="lazy" />
                           ) : (<span className="text-slate-400 text-sm flex items-center justify-center h-full">Sin imagen</span>)}
