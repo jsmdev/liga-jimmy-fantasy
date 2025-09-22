@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Loader2, ArrowUpDown,
   Trophy, Medal, ThumbsDown, Crown, Users,
-  BarChart2, AlertTriangle, ThumbsUp, Calendar, Flame,
+  AlertTriangle, ThumbsUp, Calendar, Flame,
   Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX,
   Home, Book, PieChart
 } from 'lucide-react'
@@ -645,35 +645,6 @@ function HomePage() {
       <>
         <KonamiEasterEgg />
 
-        {/* Galería de la Liga (Carrusel opcional) */}
-        <section>
-          <SectionHeader
-            title="Galería de la Liga"
-            subtitle="Momentazos y cromos de la leyenda"
-            collapsed={collapsedGallery}
-            onToggle={() => setCollapsedGallery(v => !v)}
-          />
-          <AnimatePresence initial={false}>
-            {!collapsedGallery && SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
-              <motion.div
-                key="gallery-body"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
-                className="mt-4"
-              >
-                <div
-                  className="chrome-paint-fix overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
-                  style={{ minHeight: 220 }}
-                >
-                  <PhotoCarousel photos={carouselPhotos} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-
         {loading ? (
           <div className="flex items-center justify-center py-24 text-slate-600 dark:text-slate-300">
             <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Cargando datos…
@@ -1269,6 +1240,37 @@ function HomePage() {
                 )}
               </AnimatePresence>
             </section>
+
+            {/* Galería de la Liga (Carrusel opcional) */}
+            {SHOW_CAROUSEL && Array.isArray(carouselPhotos) && carouselPhotos.length > 0 && (
+              <section>
+                <SectionHeader
+                  title="Galería de la Liga"
+                  subtitle="Momentazos y cromos de la leyenda"
+                  collapsed={collapsedGallery}
+                  onToggle={() => setCollapsedGallery(v => !v)}
+                />
+                <AnimatePresence initial={false}>
+                  {!collapsedGallery && (
+                    <motion.div
+                      key="gallery-body"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="mt-4"
+                    >
+                      <div
+                        className="chrome-paint-fix overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800"
+                        style={{ minHeight: 220 }}
+                      >
+                        <PhotoCarousel photos={carouselPhotos} />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </section>
+            )}
 
             {/* Bloque de Normativa eliminado de la Home */}
 
