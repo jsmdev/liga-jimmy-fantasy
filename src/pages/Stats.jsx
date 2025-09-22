@@ -163,6 +163,7 @@ export default function Stats(){
           pointsBase: score.points_external,
           pointsAdjustments: score.points_adjustments,
           pointsTotal: score.total_points,
+          pointsTotalAdjusted: score.points_external + score.points_adjustments,
           isAdjusted: showAdjustedHistoric
         }
       })
@@ -222,6 +223,7 @@ export default function Stats(){
           pointsBase: score.acc_external,
           pointsAdjustments: score.acc_adjustments,
           pointsTotal: score.total_points,
+          pointsTotalAdjusted: score.acc_external + score.acc_adjustments,
           isAdjusted: showAdjustedHistoric
         }
       })
@@ -447,17 +449,14 @@ export default function Stats(){
 
   const activeCellLabels = useMemo(() => {
     if(!activeCellData) return null
+    const isHistoric = activeCellData.type === 'historic'
     return {
-      baseLabel: activeCellData.type === 'historic'
-        ? 'Puntos jornada (Fantasy)'
-        : 'Puntos acumulados (Fantasy)',
-      adjustmentsLabel: activeCellData.type === 'historic'
-        ? 'Ajustes de jornada'
-        : 'Ajustes acumulados',
-      totalLabel: activeCellData.isAdjusted ? 'Total con ajustes' : 'Total sin ajustes',
-      modeHint: activeCellData.isAdjusted
-        ? 'Bonificaciones/penalizaciones aplicadas en la visualización'
-        : 'Solo puntos oficiales sin bonificaciones'
+      jimmyLabel: 'Liga Jimmy Fantasy',
+      daznLabel: 'Liga Fantasy DAZN',
+      adjustmentLabel: 'Ajuste',
+      modeHint: 'Comparativa de puntos con y sin ajustes.',
+      dialogTitle: isHistoric ? 'RANKING JORNADA INDIVIDUAL' : 'RANKING JORNADA ACUMULADA',
+      jornadaLabel: `Jornada ${activeCellData.jornada}`
     }
   }, [activeCellData])
 
@@ -1070,15 +1069,13 @@ export default function Stats(){
               onClick={event => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                      {activeCellData.type === 'historic' ? 'Ranking jornada' : 'Ranking acumulado'}
-                    </Badge>
-                    <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
-                      J{activeCellData.jornada}
-                    </Badge>
-                  </div>
+                <div className="space-y-3">
+                  <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {activeCellLabels.dialogTitle}
+                  </Badge>
+                  <Badge className="inline-flex w-fit bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
+                    {activeCellLabels.jornadaLabel}
+                  </Badge>
                   <div>
                     <h3 id="cell-info-title" className="text-xl font-bold text-slate-900 dark:text-slate-100">
                       {activeCellData.participant.name}
@@ -1100,36 +1097,55 @@ export default function Stats(){
                 </button>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Puesto</span>
-                <div className="mt-1 text-3xl font-black text-slate-900 dark:text-slate-100">
-                  {formatOrdinal(activeCellData.rank)}
-                </div>
-              </div>
-
-              <div className="grid gap-3 text-sm sm:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {activeCellLabels.baseLabel}
-                  </span>
-                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsBase)].join(' ')}>
-                    {fmtSigned(activeCellData.pointsBase)}
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50 flex flex-col justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Puesto</span>
+                  <div className="mt-3 text-3xl font-black text-slate-900 dark:text-slate-100">
+                    {formatOrdinal(activeCellData.rank)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-900/70 flex flex-col justify-between">
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {activeCellLabels.adjustmentsLabel}
+                    {activeCellLabels.adjustmentLabel}
                   </span>
-                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsAdjustments)].join(' ')}>
+                  <div className={['mt-3 text-lg font-semibold', signTextClass(activeCellData.pointsAdjustments)].join(' ')}>
                     {fmtSigned(activeCellData.pointsAdjustments)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/70">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {activeCellLabels.totalLabel}
-                  </span>
-                  <div className={['mt-1 text-lg font-semibold', signTextClass(activeCellData.pointsTotal)].join(' ')}>
-                    {fmtSigned(activeCellData.pointsTotal)}
+
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-900/70 flex flex-col justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src="https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/JimmyFantasia.jpeg"
+                      alt="Liga Jimmy Fantasy"
+                      className="h-8 w-8 rounded-full object-cover ring-2 ring-indigo-300 dark:ring-violet-400"
+                      decoding="async"
+                      loading="lazy"
+                    />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {activeCellLabels.jimmyLabel}
+                    </span>
+                  </div>
+                  <div className={['text-lg font-semibold', signTextClass((activeCellData.pointsTotalAdjusted ?? (activeCellData.pointsBase + activeCellData.pointsAdjustments)))].join(' ')}>
+                    {fmtSigned(activeCellData.pointsTotalAdjusted ?? (activeCellData.pointsBase + activeCellData.pointsAdjustments))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-900/70 flex flex-col justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src="https://ikelgpniohzalybpafuf.supabase.co/storage/v1/object/public/carousel/logo_fantasy_dazn.jpeg"
+                      alt="Liga Fantasy DAZN"
+                      className="h-8 w-8 rounded-full object-cover ring-2 ring-amber-300 dark:ring-orange-400"
+                      decoding="async"
+                      loading="lazy"
+                    />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {activeCellLabels.daznLabel}
+                    </span>
+                  </div>
+                  <div className={['text-lg font-semibold', signTextClass(activeCellData.pointsBase)].join(' ')}>
+                    {fmtSigned(activeCellData.pointsBase)}
                   </div>
                 </div>
               </div>
