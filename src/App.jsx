@@ -3,11 +3,12 @@
 // ==============================
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Loader2, ArrowUpDown,
+  Loader2,
   Trophy, Medal, ThumbsDown, Crown, Users,
   AlertTriangle, ThumbsUp, Calendar, Flame,
   Gavel, ShieldCheck, Skull, Sparkles, Gem, CalendarX,
-  Home, Book, PieChart, X
+  Home, Book, PieChart, X,
+  History as HistoryIcon
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -18,10 +19,10 @@ import PhotoCarousel from '@/components/PhotoCarousel.jsx'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card.jsx'
 import Badge from '@/components/ui/Badge.jsx'
 import Avatar from '@/components/ui/Avatar.jsx'
-import Select from '@/components/ui/Select.jsx'
 import { Routes, Route, Link, useLocation } from "react-router-dom"
 import Rules from "./Rules"
 import Stats from "./pages/Stats"
+import HistoryPage from "./pages/History"
 import SectionHeader from '@/components/SectionHeader.jsx'
 import { supabase } from '@/lib/supabaseClient.js'
 import { useLightbox } from '@/providers/LightboxProvider.jsx'
@@ -262,10 +263,6 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   // Filtros historial
-  const [filterParticipantId, setFilterParticipantId] = useState('all')
-  const [sortBy, setSortBy] = useState('date')
-  const [sortDir, setSortDir] = useState('desc')
-
   const [carousel, setCarousel] = useState([])
   const [scores, setScores] = useState([])
 
@@ -282,7 +279,6 @@ export default function App() {
   // Colapsables
   const [collapsedRanking, setCollapsedRanking] = useState(false)
   const [collapsedSummary, setCollapsedSummary] = useState(false)
-  const [collapsedHistory, setCollapsedHistory] = useState(false)
   const [collapsedStats, setCollapsedStats] = useState(false) // sección estadísticas
   const [collapsedGallery, setCollapsedGallery] = useState(false) // galería
   const [collapsedRules, setCollapsedRules] = useState(false) // Normativa
@@ -385,29 +381,6 @@ export default function App() {
     }
     return { sanciones, sancionesTotal, bonificaciones, bonificacionesTotal, totalCount, totalSum }
   }, [penalties])
-
-  // Historial unido + orden
-  const rows = useMemo(() => {
-    const joined = penalties.map(p => {
-      const part = participants.find(pp => pp.id === p.participant_id)
-      return { ...p, _name: part?.name || '', _team: part?.team_name || '', _photo: part?.photo_url || '', _date: p.date ? new Date(p.date) : null }
-    })
-    const dir = sortDir === 'asc' ? 1 : -1
-    joined.sort((a, b) => {
-      switch (sortBy) {
-        case 'name': return a._name.localeCompare(b._name) * dir
-        case 'team': return a._team.localeCompare(b._team) * dir
-        case 'amount': return ((a.amount || 0) - (b.amount || 0)) * dir
-        case 'date':
-        default: {
-          const at = a._date ? a._date.getTime() : 0
-          const bt = b._date ? b._date.getTime() : 0
-          return (at - bt) * dir
-        }
-      }
-    })
-    return joined
-  }, [penalties, participants, sortBy, sortDir])
 
   // Ranking
   const { ranking, lastRankingJornada } = useMemo(() => {
@@ -1067,113 +1040,6 @@ function HomePage() {
               </AnimatePresence>
             </section>
 
-            {/* Historial */}
-            <section className="mt-10">
-              <SectionHeader
-                title="Historial"
-                subtitle="Consulta detallada ordenable y filtrable"
-                collapsed={collapsedHistory}
-                onToggle={() => setCollapsedHistory(v => !v)}
-              />
-              <AnimatePresence initial={false}>
-                {!collapsedHistory && (
-                  <motion.div key="history-body" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className="mt-4">
-                    <div className="mt-4 pb-4 grid gap-3 lg:grid-cols-4">
-                      <div className="lg:col-span-2">
-                        <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Participante</label>
-                        <Select
-                          value={filterParticipantId}
-                          onChange={v => setFilterParticipantId(v)}
-                          options={[{ value: 'all', label: 'Todos' }, ...participants.map(p => ({ value: p.id, label: p.name }))]}
-                          className="w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Ordenar por</label>
-                        <Select
-                          value={sortBy}
-                          onChange={setSortBy}
-                          options={[
-                            { value: 'date', label: 'Fecha' },
-                            { value: 'name', label: 'Nombre participante' },
-                            { value: 'team', label: 'Nombre equipo' },
-                            { value: 'amount', label: 'Penalización' }
-                          ]}
-                          className="w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-slate-700 dark:text-slate-300 text-sm mb-1">Dirección</label>
-                        <Select value={sortDir} onChange={setSortDir} options={[{ value: 'asc', label: 'Ascendente' }, { value: 'desc', label: 'Descendente' }]} className="w-full" />
-                      </div>
-                      {(filterParticipantId !== 'all' || sortBy !== 'date' || sortDir !== 'desc') && (
-                        <div className="lg:col-span-4 flex justify-end">
-                          <button
-                            onClick={() => { setFilterParticipantId('all'); setSortBy('date'); setSortDir('desc') }}
-                            className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition"
-                          >
-                            Limpiar filtros
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <Card className="glass card-float overflow-hidden">
-                      <CardHeader className="flex flex-row items-center justify-between gap-4">
-                        <div>
-                          <CardTitle>Historial de penalizaciones</CardTitle>
-                          <CardDescription>
-                            Consulta detallada de sanciones y bonificaciones. Orden actual: <strong>{({ date: 'Fecha', name: 'Nombre', team: 'Equipo', amount: 'Penalización' })[sortBy]}</strong> <ArrowUpDown className="inline w-4 h-4" />
-                          </CardDescription>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="rounded-xl overflow-x-auto border border-slate-200 dark:border-slate-700">
-                          <table className="w-full text-sm min-w-[820px]">
-                            <thead className="bg-slate-50 dark:bg-slate-800/60">
-                              <tr className="text-left">
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Foto</th>
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Nombre participante</th>
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Nombre Equipo</th>
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Fecha</th>
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Penalización</th>
-                                <th className="px-4 py-3 text-slate-700 dark:text-slate-300">Motivo</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rows
-                                .filter(p => filterParticipantId === 'all' || p.participant_id === filterParticipantId)
-                                .map(pen => (
-                                  <tr key={pen.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700">
-                                    <td className="px-4 py-3">
-                                      <div
-                                        onClick={() => {
-                                          if (pen._photo) {
-                                            showImage(pen._photo, { alt: `Avatar de ${pen._name}` })
-                                          }
-                                        }}
-                                        className={pen._photo ? 'cursor-zoom-in inline-block' : 'inline-block'}
-                                      >
-                                        <Avatar src={pen._photo} alt={pen._name} fallback={initials(pen._name)} />
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{pen._name || '—'}</td>
-                                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{pen._team || '—'}</td>
-                                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(pen.date)}</td>
-                                    <td className="px-4 py-3"><Badge className={['text-white', signClass(pen.amount)].join(' ')}>{fmtSigned(pen.amount)}</Badge></td>
-                                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{pen.reason}</td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </section>
-
             {/* ==============================
                 ESTADÍSTICAS – Lado oscuro vs lado luminoso
               ================================= */}
@@ -1596,6 +1462,7 @@ function HomePage() {
           >
             <NavigationLink to="/" icon={<Home className="h-5 w-5" />} label="Inicio" activePath={activePath} onActivate={setActivePath} />
             <NavigationLink to="/stats" icon={<PieChart className="h-5 w-5" />} label="Stats" activePath={activePath} onActivate={setActivePath} />
+            <NavigationLink to="/history" icon={<HistoryIcon className="h-5 w-5" />} label="Historial" activePath={activePath} onActivate={setActivePath} />
             <NavigationLink to="/rules" icon={<Book className="h-5 w-5" />} label="Reglas" activePath={activePath} onActivate={setActivePath} />
           </nav>
         </div>
@@ -1607,6 +1474,20 @@ function HomePage() {
           <Route path="/" element={<HomePage />} />
           <Route path="/rules" element={<Rules pdfUrl={import.meta.env.VITE_RULES_PDF_URL} />} />
           <Route path="/stats" element={<Stats />} />
+          <Route
+            path="/history"
+            element={(
+              <HistoryPage
+                participants={participants}
+                penalties={penalties}
+                showImage={showImage}
+                getInitials={initials}
+                formatSigned={fmtSigned}
+                formatDate={fmtDate}
+                getSignClass={signClass}
+              />
+            )}
+          />
         </Routes>
       </main>
 
