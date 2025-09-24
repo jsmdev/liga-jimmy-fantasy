@@ -267,7 +267,6 @@ export default function App() {
   const [sortDir, setSortDir] = useState('desc')
 
   const [carousel, setCarousel] = useState([])
-  const [rankingRows, setRankingRows] = useState([])
   const [scores, setScores] = useState([])
 
   const showImage = useCallback((url, meta = {}) => {
@@ -336,11 +335,6 @@ export default function App() {
         setCarousel([])
       }
 
-      const { data: rank } = await supabase
-        .from('v_ranking_official')
-        .select('participant_id,name,team_name,external_total,adjustment_total,score,rank,last_jornada,last_played_on')
-        .order('rank', { ascending: true })
-
       // Día(s) más travieso(s)
       const { data: naughty } = await supabase
         .from('v_stats_naughty_day')
@@ -350,11 +344,10 @@ export default function App() {
       setParticipants(parts || [])
       setPenalties(pens || [])
       setScores(scoresData || [])
-      setRankingRows(rank || [])
       setNaughtyDays(naughty || [])
     } catch (e) {
       console.error('load() error', e)
-      setParticipants([]); setPenalties([]); setCarousel([]); setScores([]); setRankingRows([]); setNaughtyDays([])
+      setParticipants([]); setPenalties([]); setCarousel([]); setScores([]); setNaughtyDays([])
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
@@ -417,22 +410,63 @@ export default function App() {
   }, [penalties, participants, sortBy, sortDir])
 
   // Ranking
-  const ranking = useMemo(() => {
-    const r = (rankingRows || []).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999))
-    return r.map(row => {
-      const p = participants.find(pp => pp.id === row.participant_id)
+  const { ranking, lastRankingJornada } = useMemo(() => {
+    if (!participants?.length) {
+      return { ranking: [], lastRankingJornada: null }
+    }
+
+    const participantIds = participants.map(p => p.id)
+    const baseTotals = new Map(participantIds.map(id => [id, 0]))
+    let latestJornada = 0
+
+    for (const score of scores || []) {
+      const jornada = Number(score?.jornada) || 0
+      if (jornada > latestJornada) latestJornada = jornada
+    }
+
+    for (const score of scores || []) {
+      const pid = score?.participant_id
+      if (!baseTotals.has(pid)) continue
+      const jornada = Number(score?.jornada) || 0
+      if (!jornada || jornada > latestJornada) continue
+      const external = Number(score?.points_external) || 0
+      baseTotals.set(pid, baseTotals.get(pid) + external)
+    }
+
+    const adjustmentTotals = new Map(participantIds.map(id => [id, 0]))
+    for (const pen of penalties || []) {
+      const pid = pen?.participant_id
+      if (!adjustmentTotals.has(pid)) continue
+      const amount = Number(pen?.amount) || 0
+      adjustmentTotals.set(pid, adjustmentTotals.get(pid) + amount)
+    }
+
+    const computed = participants.map(participant => {
+      const base = baseTotals.get(participant.id) || 0
+      const adjustments = adjustmentTotals.get(participant.id) || 0
+      const total = base + adjustments
       return {
-        id: row.participant_id,
-        name: row.name,
-        team_name: row.team_name,
-        photo_url: p?.photo_url || '',
-        ext: Number(row.external_total) || 0,
-        pen: Number(row.adjustment_total) || 0,
-        score: Number(row.score) || 0,
-        rank: Number(row.rank) || 0,
+        id: participant.id,
+        name: participant.name,
+        team_name: participant.team_name,
+        photo_url: participant.photo_url || '',
+        ext: base,
+        pen: adjustments,
+        score: total,
       }
     })
-  }, [rankingRows, participants])
+
+    computed.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      if (b.ext !== a.ext) return b.ext - a.ext
+      return (a.name || '').localeCompare(b.name || '')
+    })
+
+    return {
+      ranking: computed.map((row, idx) => ({ ...row, rank: idx + 1 })),
+      lastRankingJornada: latestJornada || null,
+    }
+  }, [participants, scores, penalties])
 
   const podium = useMemo(() => ranking.slice(0, 3), [ranking])
   const tailTwo = useMemo(() => ranking.slice(-2), [ranking])
@@ -686,7 +720,7 @@ function HomePage() {
             <section>
               <SectionHeader
                 title="Ranking actual"
-                subtitle="Reparto del bote: 50% / 30% / 20%. Los dos últimos… escarnio público 😉"
+                subtitle="Premios y jolgorio para los tres primeros. Los dos últimos… escarnio público 😉. El resto mediocridad."
                 collapsed={collapsedRanking}
                 onToggle={() => setCollapsedRanking(v => !v)}
               />
@@ -700,6 +734,11 @@ function HomePage() {
                     transition={{ duration: 0.18 }}
                     className="mt-4 space-y-6"
                   >
+                    {lastRankingJornada ? (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Datos acumulados hasta la jornada {lastRankingJornada}. Ajustes aplicados en tiempo real.
+                      </p>
+                    ) : null}
                     {/* Podio */}
                     <div className="glass border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
                       <div className="text-sm font-semibold mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-2">
